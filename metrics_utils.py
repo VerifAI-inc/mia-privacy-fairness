@@ -44,13 +44,13 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         y_val_pred_prob = model.predict(dataset).scores
         pos_ind = 0
         neg_ind = 1
-        #print('y_val_pre_prob: ', y_val_pred_prob)
+        print('y_val_pre_prob: ', y_val_pred_prob)
 
     if metric_arrs is None:
         metric_arrs = defaultdict(list)
 
     for thresh in thresh_arr:
-        #y_val_pred = (y_val_pred_prob[:, pos_ind] > thresh).astype(np.float64)
+        # y_val_pred = (y_val_pred_prob[:, pos_ind] > thresh).astype(np.float64)
         y_val_pred = np.array([0]*y_val_pred_prob.shape[0])
         y_val_pred[np.where(y_val_pred_prob[:,pos_ind] > thresh)[0]] = f_label
         y_val_pred[np.where(y_val_pred_prob[:,pos_ind] <= thresh)[0]] = uf_label
@@ -66,8 +66,8 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         metric_arrs['bal_acc'].append((metric.true_positive_rate()
                                      + metric.true_negative_rate()) / 2)
         # for debug
-        # print(f"Accuracy for thershold: {thresh}  is: {metric.accuracy()}")
-        # print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
+        print(f"Accuracy for threshold: {thresh}  is: {metric.accuracy()}")
+        print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
 
 
         
@@ -141,8 +141,8 @@ def describe_metrics(metrics, thresh_arr, TEST=True):
     print("Corresponding statistical parity difference value: {:6.4f}".format(metrics['stat_par_diff'][best_ind]))
     print("Corresponding equal opportunity difference value: {:6.4f}".format(metrics['eq_opp_diff'][best_ind]))
     print("Corresponding Theil index value: {:6.4f}".format(metrics['theil_ind'][best_ind]))
-    # print("Corresponding false positive_rate: {:6.4f}".format(metrics['false_positive_rate'][best_ind]))
-    # print("Corresponding false negative_rate: {:6.4f}".format(metrics['false_negative_rate'][best_ind]))
+    print("Corresponding false positive_rate: {:6.4f}".format(metrics['false_positive_rate'][best_ind]))
+    print("Corresponding false negative_rate: {:6.4f}".format(metrics['false_negative_rate'][best_ind]))
 
 
     
@@ -214,7 +214,7 @@ def get_test_metrics_for_syn(syn_dataset, dataset_orig_train, dataset_orig_val, 
     
     orig_best_ind = np.argmax(val_metrics['bal_acc'])
     # for debugging
-    # print("Best thresh: ", thresh_arr[orig_best_ind])
+    print("Best thresh: ", thresh_arr[orig_best_ind])
  
 
     disp_imp = np.array(val_metrics['disp_imp'])
@@ -231,7 +231,7 @@ def get_test_metrics_for_syn(syn_dataset, dataset_orig_train, dataset_orig_val, 
 
         plt.show()
 
-    #describe_metrics(val_metrics, thresh_arr)
+    describe_metrics(val_metrics, thresh_arr)
 
 
     print('Testing Original ...')
@@ -304,7 +304,7 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
     
     orig_best_ind = np.argmax(val_metrics['bal_acc'])
     # for debugging
-    # print("Best thresh: ", thresh_arr[orig_best_ind])
+    print("Best thresh: ", thresh_arr[orig_best_ind])
  
 
     disp_imp = np.array(val_metrics['disp_imp'])
@@ -321,7 +321,7 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
 
         plt.show()
 
-    #describe_metrics(val_metrics, thresh_arr)
+    describe_metrics(val_metrics, thresh_arr)
 
 
     print('Testing Original ...')

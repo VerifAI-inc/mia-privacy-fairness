@@ -9,7 +9,6 @@ from aif360.datasets import MEPSDataset20
 from aif360.datasets import MEPSDataset21
 from aif360.datasets import BinaryLabelDataset
 
-
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions\
             import load_preproc_data_adult, load_preproc_data_german, load_preproc_data_compas
 

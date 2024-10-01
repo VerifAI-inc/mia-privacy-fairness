@@ -172,26 +172,29 @@ def label_bias(dataset, unprivileged_groups, threshold):
     indices, priv_indices = group_indices(dataset_label_bias, unprivileged_groups)
 
     # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset
-    #unprivileged_dataset = dataset_label_bias.subset(indices) # unprivileaged
-    #privileged_dataset = dataset_label_bias.subset(priv_indices) # privilegaed
+    unprivileged_dataset = dataset_label_bias.subset(indices) # unprivileaged
+    privileged_dataset = dataset_label_bias.subset(priv_indices) # privilegaed
 
     # number of unprivileged/privileged with favorable label
-    #n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
-    #n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
+    n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
+    n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
 
-    #print('Count of unpriv fav before bias injection: ', n_unpriv_favor)
-    #print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
+    print('Count of unpriv fav before bias injection: ', n_unpriv_favor)
+    print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
 
     for i in indices:
         if dataset_label_bias.labels[i] == f_label:
             if (random.random() < threshold):
                 dataset_label_bias.labels[i] = uf_label
+                
+    unprivileged_dataset = dataset_label_bias.subset(indices) # unprivileaged
+    privileged_dataset = dataset_label_bias.subset(priv_indices) # privilegaed
 
     #unprivileged_dataset = dataset_label_bias.subset(indices) # unprivileaged
-    #n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
-    #n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
-    #print('Count of unpriv fav after bias injection: ', n_unpriv_favor)
-    #print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
+    n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
+    n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
+    print('Count of unpriv fav after bias injection: ', n_unpriv_favor)
+    print('Count of unpriv unfav after bias injection: ', n_unpriv_unfavor)
 
     return dataset_label_bias
 
@@ -208,18 +211,19 @@ def selection_bias(dataset, unprivileged_groups, threshold):
     indices, priv_indices = group_indices(dataset_select_bias, unprivileged_groups)
 
     # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset
-    #unprivileged_dataset = dataset_select_bias.subset(indices) # unprivileaged
-    #privileged_dataset = dataset_select_bias.subset(priv_indices) # privilegaed
+    unprivileged_dataset = dataset_select_bias.subset(indices) # unprivileged
+    privileged_dataset = dataset_select_bias.subset(priv_indices) # privileged
 
     # number of unprivileged/privileged with favorable label
-    #n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
-    #n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
-    #n_priv_favor = np.count_nonzero(privileged_dataset.labels==f_label) # privileged with favorable label
-    #n_priv_unfavor = np.count_nonzero(privileged_dataset.labels!=f_label) # privileged with unfavorable label
-    #print('Count of unpriv fav before bias injection: ', n_unpriv_favor)
-    #print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
-    #print('Count of priv fav before bias injection: ', n_priv_favor)
-    #print('Count of priv unfav before bias injection: ', n_priv_unfavor)
+    n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
+    n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
+    n_priv_favor = np.count_nonzero(privileged_dataset.labels==f_label) # privileged with favorable label
+    n_priv_unfavor = np.count_nonzero(privileged_dataset.labels!=f_label) # privileged with unfavorable label
+    print('Count of unpriv fav before bias injection: ', n_unpriv_favor)
+    print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
+    print('Count of priv fav before bias injection: ', n_priv_favor)
+    print('Count of priv unfav before bias injection: ', n_priv_unfavor)
+    
     selected = []
     for i in indices:
         if dataset_select_bias.labels[i] == f_label:
@@ -231,16 +235,16 @@ def selection_bias(dataset, unprivileged_groups, threshold):
     selected.extend(priv_indices)
     dataset_select_bias = dataset_select_bias.subset(selected)
 
-    #indices, priv_indices = group_indices(dataset_select_bias, unprivileged_groups)
-    #unprivileged_dataset = dataset_select_bias.subset(indices) # unprivileaged
-    #privileged_dataset = dataset_select_bias.subset(priv_indices) # privilegaed
-    #n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
-    #n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
-    #n_priv_favor = np.count_nonzero(privileged_dataset.labels==f_label) # privileged with favorable label
-    #n_priv_unfavor = np.count_nonzero(privileged_dataset.labels!=f_label) # privileged with unfavorable label
-    #print('Count of unpriv fav after bias injection: ', n_unpriv_favor)
-    #print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
-    #print('Count of priv fav before bias injection: ', n_priv_favor)
+    indices, priv_indices = group_indices(dataset_select_bias, unprivileged_groups)
+    unprivileged_dataset = dataset_select_bias.subset(indices) # unprivileaged
+    privileged_dataset = dataset_select_bias.subset(priv_indices) # privilegaed
+    n_unpriv_favor = np.count_nonzero(unprivileged_dataset.labels==f_label) # unprivileged with favorable label
+    n_unpriv_unfavor = np.count_nonzero(unprivileged_dataset.labels!=f_label) # unprivileged with unfavorable label
+    n_priv_favor = np.count_nonzero(privileged_dataset.labels==f_label) # privileged with favorable label
+    n_priv_unfavor = np.count_nonzero(privileged_dataset.labels!=f_label) # privileged with unfavorable label
+    print('Count of unpriv fav after bias injection: ', n_unpriv_favor)
+    print('Count of unpriv unfav before bias injection: ', n_unpriv_unfavor)
+    print('Count of priv fav before bias injection: ', n_priv_favor)
+    print('Count of priv unfav before bias injection: ', n_priv_unfavor)
 
     return dataset_select_bias
-

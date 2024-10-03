@@ -279,13 +279,12 @@ def get_test_metrics_for_syn(syn_dataset, dataset_orig_train, dataset_orig_val, 
 
 
 
-def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER):
+def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, f_label=None, uf_label=None, unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
 
     dataset = dataset_orig_train
 
     test_model = TModel(model_type)
     mod_orig = test_model.set_model(dataset, SCALER)
-    
     
     print("####Train metrics:")
     print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
@@ -304,46 +303,49 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
     else:
         dataset_orig_val_pred = dataset_orig_val.copy(deepcopy=True)
         dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
+        
+        
+    if (f_label != None and uf_label != None):
 
-    val_metrics = test(f_label, uf_label,
-                       unprivileged_groups, privileged_groups,
-                       dataset=dataset_orig_val_pred,
-                       model=mod_orig,
-                       thresh_arr=thresh_arr, metric_arrs=None)
-    
-    orig_best_ind = np.argmax(val_metrics['bal_acc'])
-    
-    # for debugging
-    print("Best thresh: ", thresh_arr[orig_best_ind])
-
-    disp_imp = np.array(val_metrics['disp_imp'])
-    disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
-
-    if DISPLAY:
-        plot(thresh_arr, model_type + ' Original Classification Thresholds',
-             val_metrics['bal_acc'], 'Balanced Accuracy',
-             disp_imp_err, '1 - min(DI, 1/DI)')
-
-        plot(thresh_arr, model_type + ' Original Classification Thresholds',
-             val_metrics['bal_acc'], 'Balanced Accuracy',
-             val_metrics['avg_odds_diff'], 'avg. odds diff.')
-
-        plt.show()
-
-    describe_metrics(val_metrics, thresh_arr)
-
-    print('Testing Original ...')
-    test_metrics = test(f_label, uf_label,
+        val_metrics = test(f_label, uf_label,
                         unprivileged_groups, privileged_groups,
-                        dataset=dataset_orig_test_pred,
+                        dataset=dataset_orig_val_pred,
                         model=mod_orig,
-                        # select thereshold based on best balanced accuracy
-                        thresh_arr=[thresh_arr[orig_best_ind]], 
-                        # 0.5
-                        # thresh_arr=[thresh_arr[-1]], 
-                        metric_arrs=test_metrics)
+                        thresh_arr=thresh_arr, metric_arrs=None)
+        
+        orig_best_ind = np.argmax(val_metrics['bal_acc'])
+        
+        # for debugging
+        print("Best thresh: ", thresh_arr[orig_best_ind])
 
-    describe_metrics(test_metrics, thresh_arr)
+        disp_imp = np.array(val_metrics['disp_imp'])
+        disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
+
+        if DISPLAY:
+            plot(thresh_arr, model_type + ' Original Classification Thresholds',
+                val_metrics['bal_acc'], 'Balanced Accuracy',
+                disp_imp_err, '1 - min(DI, 1/DI)')
+
+            plot(thresh_arr, model_type + ' Original Classification Thresholds',
+                val_metrics['bal_acc'], 'Balanced Accuracy',
+                val_metrics['avg_odds_diff'], 'avg. odds diff.')
+
+            plt.show()
+
+        describe_metrics(val_metrics, thresh_arr)
+
+        print('Testing Original ...')
+        test_metrics = test(f_label, uf_label,
+                            unprivileged_groups, privileged_groups,
+                            dataset=dataset_orig_test_pred,
+                            model=mod_orig,
+                            # select thereshold based on best balanced accuracy
+                            thresh_arr=[thresh_arr[orig_best_ind]], 
+                            # 0.5
+                            # thresh_arr=[thresh_arr[-1]], 
+                            metric_arrs=test_metrics)
+
+        describe_metrics(test_metrics, thresh_arr)
     
     # Runnning MIA attack based on subgroups
     results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mod_orig)

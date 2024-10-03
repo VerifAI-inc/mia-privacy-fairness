@@ -3,7 +3,7 @@ import random
 from imblearn.over_sampling import ADASYN
 
 # Datasets
-from aif360.datasets import AdultDataset, GermanDataset, CompasDataset, BankDataset
+from aif360.datasets import AdultDataset, GermanDataset, CompasDataset, BankDataset, LawSchoolGPADataset
 from aif360.datasets import MEPSDataset19
 from aif360.datasets import MEPSDataset20
 from aif360.datasets import MEPSDataset21
@@ -11,6 +11,10 @@ from aif360.datasets import BinaryLabelDataset
 
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions\
             import load_preproc_data_adult, load_preproc_data_german, load_preproc_data_compas
+            
+import pandas as pd
+
+from sklearn.preprocessing import LabelEncoder
 
 class DatasetBuilder:
 
@@ -43,7 +47,46 @@ class DatasetBuilder:
                 protected_attribute_names=['age'],           # this dataset also contains protected
                 privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
             )
+            
+        elif self.DATASET == 'law_sex':
+            self.privileged_groups = [{'gender': 1}]
+            self.unprivileged_groups = [{'gender': 0}]
+            
+            def custom_preprocessing(df):
+                """Custom preprocessing to convert categorical features to numeric and create classification labels."""
+                # Map gender: male = 1, female = 0
+                df['gender'] = df['gender'].map({'male': 1, 'female': 0})
+                
+                # Map race: white = 1, black = 0
+                df['race'] = df['race'].map({'white': 1, 'black': 0})
+                
+                # Create binary classification labels based on GPA
+                gpa_threshold = 0.6  # You can adjust the threshold as needed
+                df['gpa_class'] = (df['zfygpa'] >= gpa_threshold).astype(int)  # 1 for high GPA, 0 for low GPA
+                
+                df = df.drop(columns=['zfygpa'])
+                
+                return df
 
+            # Load dataset and preprocess for classification
+            reg_dataset = LawSchoolGPADataset(
+                protected_attribute_names=['gender'],  # Use 'gender' as the protected attribute
+                privileged_classes=[[1]],              # 'male' is the privileged class
+                dep_var_name='gpa_class',              # Use 'gpa_class' as the new target variable for classification
+                custom_preprocessing=custom_preprocessing  # Apply custom preprocessing
+            )
+            
+            # Now, convert the dataset to a pandas DataFrame
+            df, _ = reg_dataset.convert_to_dataframe()
+
+            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
+                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                df=df,
+                label_names=['gpa_class'],  # The newly created binary label
+                protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
+            )
         elif self.DATASET == 'compas':
             self.privileged_groups = [{'race': 1}]
             self.unprivileged_groups = [{'race': 0}]
@@ -184,9 +227,12 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     sample_features = np.concatenate((f_dataset.features, inflated_uf_features))
     inflated_uf_labels = np.repeat(uf_dataset.labels, inflate_rate, axis=0)
     sample_labels = np.concatenate((f_dataset.labels, inflated_uf_labels))
+    
 
     # oversampling favorable samples
-    # X: inflated dataset with synthetic samples of f_label attached to the end 
+    # X: inflated dataset with synthetic samples of f_label attached to the end
+
+    # Now apply ADASYN oversampling
     oversample = ADASYN(sampling_strategy='minority')
     X, y = oversample.fit_resample(sample_features, sample_labels)
     y = y.reshape(-1,1)

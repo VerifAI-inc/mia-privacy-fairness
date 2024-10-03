@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 def plot(x, x_name, y_left, y_left_name, y_right, y_right_name):
     fig, ax1 = plt.subplots(figsize=(10,7))
@@ -94,7 +95,7 @@ def plot_algo(orig_metrics_mean, transf_metrics_mean, dir_metrics_mean, reweigh_
             cpp_error_metrics,
             ro_error_metrics]
 
-    index = pd.Series([model_type+'_orig']+ [model_type+'_syn']+ [model_type+'_dir']+ [model_type+'_rew']+ [model_type+'_egr']+ [model_type+'_cpp']+ [model_type+'_ro'], name='Classifier Bias Mitigator')
+    index = pd.Series([model_type+'_orig']+ [model_type+'_syn']+ [model_type+'_dir']+ [model_type+'_rew']+ [model_type+'_egr']+ [model_type+'_cpp'], name='Classifier Bias Mitigator')
 
     df = pd.concat([pd.DataFrame(metrics) for metrics in results], axis=0).set_index(index)
     df_error = pd.concat([pd.DataFrame(metrics) for metrics in errors], axis=0).set_index(index)

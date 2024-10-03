@@ -23,7 +23,7 @@ def synthetic_balance (dataset, unprivileged_groups, bp, bnp, f_label, uf_label,
     dataset_transf_train = dataset.copy(deepcopy=True)
 
     # indices of examples in the unprivileged and privileged groups
-    indices, priv_indices = group_indices (dataset, unprivileged_groups)
+    indices, priv_indices = group_indices(dataset, unprivileged_groups)
 
     # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
     unprivileged_dataset = dataset.subset(indices) # unprivileaged

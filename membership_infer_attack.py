@@ -26,7 +26,7 @@ import pandas as pd
 import numpy as np
 import itertools
 from tqdm import tqdm
-
+import warnings
 
 
 #setup classification/test models
@@ -76,15 +76,14 @@ def log_losses(y_true, y_pred, eps=1e-15):
 
 
 def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mod_orig ):
-
+    
     # getting the column denoting priv/unpriv groups
     priv_group_column = list(privileged_groups[0].keys())[0]
 
     # create df for train
     df_train = pd.DataFrame(dataset_orig_train.features, columns=dataset_orig_train.feature_names)
     df_train["labels"] = dataset_orig_train.labels
-
-
+    
     # create labels train where labels denote class types, in compas it is race
     # labels_train = df_train[priv_group_column]
     protected_attr_train = df_train[priv_group_column]
@@ -113,11 +112,7 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
         preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
         preds_test["label"] = dataset_orig_test.labels
         # loss_test = compute_loss_dt(preds_test["1"])   
-        loss_test = log_losses(preds_test["label"], preds_test["1"])
-
-
-
-        
+        loss_test = log_losses(preds_test["label"], preds_test["1"])        
     else: #model_type == "lr" or model_type == "nn":
         # per example loss for train
         if model_type != "nn":
@@ -126,14 +121,11 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
             #loss_train = compute_loss_lr(preds_train["label"], preds_train["1"])
             loss_train = log_losses(preds_train["label"], preds_train["1"])
 
-            
             # per example loss for test
             preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
             preds_test["label"] = dataset_orig_test.labels
             # loss_test = compute_loss_lr(preds_test["label"], preds_test["1"])   
             loss_test = log_losses(preds_test["label"], preds_test["1"])
-
-
         # torch NN
         else:
             
@@ -157,7 +149,6 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
             # loss_train = compute_loss_lr(preds_train["label"], preds_train["1"])
             loss_train = log_losses(preds_train["label"], preds_train["1"])
 
-            
             # calculating loss for test
             x = torch.Tensor(dataset_orig_test.features)
             
@@ -166,15 +157,11 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
                 pred = mod_orig(x)
                 y_val_pred_prob = torch.softmax(pred, dim=1)
                 y_val_pred_prob = y_val_pred_prob.numpy()
-
-                
             
             preds_test = pd.DataFrame(y_val_pred_prob, columns=["0", "1"])
             preds_test["label"] = dataset_orig_test.labels
             # loss_test = compute_loss_lr(preds_test["label"], preds_test["1"]) 
             loss_test = log_losses(preds_test["label"], preds_test["1"]) 
-
-        
      
     #else:
     #    raise NotImplementedError(f"Loss function for {model_type} should be implemented!")

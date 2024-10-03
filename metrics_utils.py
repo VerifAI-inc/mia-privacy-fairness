@@ -11,9 +11,12 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 from sklearn.metrics import classification_report
+from sklearn.preprocessing import StandardScaler
 
 from membership_infer_attack import run_mia_attack
 
+from plot_utils import plot
+import matplotlib.pyplot as plt
 
 def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, model, thresh_arr, metric_arrs):
     try:
@@ -44,7 +47,7 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         y_val_pred_prob = model.predict(dataset).scores
         pos_ind = 0
         neg_ind = 1
-        print('y_val_pre_prob: ', y_val_pred_prob)
+        print('y_val_pred_prob: ', y_val_pred_prob)
 
     if metric_arrs is None:
         metric_arrs = defaultdict(list)
@@ -65,11 +68,6 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
 
         metric_arrs['bal_acc'].append((metric.true_positive_rate()
                                      + metric.true_negative_rate()) / 2)
-        # for debug
-        print(f"Accuracy for threshold: {thresh}  is: {metric.accuracy()}")
-        print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
-
-
         
         # print other statistics for debugging
         if len(thresh_arr) == 1:
@@ -77,8 +75,11 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
             print("True negative rate is: ", metric.true_negative_rate())
             print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
             print("Test Accuracy is: ", metric.accuracy())
-
-            
+        else:
+            # for debug
+            print(f"Accuracy for threshold: {thresh}  is: {metric.accuracy()}")
+            print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
+    
         metric_arrs['avg_odds_diff'].append(metric.average_odds_difference())
         metric_arrs['disp_imp'].append(1 - min((metric.disparate_impact()), 1/metric.disparate_impact()))
         metric_arrs['stat_par_diff'].append(metric.statistical_parity_difference())
@@ -111,6 +112,10 @@ def compute_metrics(dataset_true, dataset_pred,
         metrics['stat_par_diff'] = classified_metric_pred.statistical_parity_difference()
         metrics['eq_opp_diff'] = classified_metric_pred.equal_opportunity_difference()
         metrics['theil_ind'] = classified_metric_pred.theil_index()
+        metrics['unpriv_fpr'].append(classified_metric_pred.false_positive_rate(privileged=False))
+        metrics['unpriv_fnr'].append(classified_metric_pred.false_negative_rate(privileged=False))
+        metrics['priv_fpr'].append(classified_metric_pred.false_positive_rate(privileged=True))
+        metrics['priv_fnr'].append(classified_metric_pred.false_negative_rate(privileged=True))
     else:
         metrics['bal_acc'].append(0.5*(classified_metric_pred.true_positive_rate()+
                                                  classified_metric_pred.true_negative_rate()))
@@ -119,13 +124,16 @@ def compute_metrics(dataset_true, dataset_pred,
         metrics['stat_par_diff'].append(classified_metric_pred.statistical_parity_difference())
         metrics['eq_opp_diff'].append(classified_metric_pred.equal_opportunity_difference())
         metrics['theil_ind'].append(classified_metric_pred.theil_index())
+        metrics['unpriv_fpr'].append(classified_metric_pred.false_positive_rate(privileged=False))
+        metrics['unpriv_fnr'].append(classified_metric_pred.false_negative_rate(privileged=False))
+        metrics['priv_fpr'].append(classified_metric_pred.false_positive_rate(privileged=True))
+        metrics['priv_fnr'].append(classified_metric_pred.false_negative_rate(privileged=True))
     
     if disp:
         for k in metrics:
             print("%s = %.4f" % (k, metrics[k]))
     
     return metrics
-
 
 def describe_metrics(metrics, thresh_arr, TEST=True):
     if not TEST:
@@ -141,10 +149,10 @@ def describe_metrics(metrics, thresh_arr, TEST=True):
     print("Corresponding statistical parity difference value: {:6.4f}".format(metrics['stat_par_diff'][best_ind]))
     print("Corresponding equal opportunity difference value: {:6.4f}".format(metrics['eq_opp_diff'][best_ind]))
     print("Corresponding Theil index value: {:6.4f}".format(metrics['theil_ind'][best_ind]))
-    print("Corresponding false positive_rate: {:6.4f}".format(metrics['false_positive_rate'][best_ind]))
-    print("Corresponding false negative_rate: {:6.4f}".format(metrics['false_negative_rate'][best_ind]))
-
-
+    print("Corresponding false positive_rate for privileged: {:6.4f}".format(metrics['priv_fpr'][best_ind]))
+    print("Corresponding false negative_rate for privileged: {:6.4f}".format(metrics['priv_fnr'][best_ind]))
+    print("Corresponding false positive_rate for unpribileged: {:6.4f}".format(metrics['unpriv_fpr'][best_ind]))
+    print("Corresponding false negative_rate for unprivileged: {:6.4f}".format(metrics['unpriv_fnr'][best_ind]))
     
 def calculate_accuracy(model, dataset):
     if "ModelToAttack" in str(type(model)):
@@ -279,13 +287,14 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
     mod_orig = test_model.set_model(dataset, SCALER)
     
     
-    print("Train metrics:")
+    print("####Train metrics:")
     print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
     
     thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
 
     # find the best threshold for balanced accuracy
     print('Validating Original ...')
+    
     if SCALER:
         scale_orig = StandardScaler()
         dataset_orig_val_pred = dataset_orig_val.copy(deepcopy=True)
@@ -303,9 +312,9 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
                        thresh_arr=thresh_arr, metric_arrs=None)
     
     orig_best_ind = np.argmax(val_metrics['bal_acc'])
+    
     # for debugging
     print("Best thresh: ", thresh_arr[orig_best_ind])
- 
 
     disp_imp = np.array(val_metrics['disp_imp'])
     disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
@@ -323,16 +332,15 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
 
     describe_metrics(val_metrics, thresh_arr)
 
-
     print('Testing Original ...')
     test_metrics = test(f_label, uf_label,
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_test_pred,
                         model=mod_orig,
                         # select thereshold based on best balanced accuracy
-                        # thresh_arr=[thresh_arr[orig_best_ind]], 
+                        thresh_arr=[thresh_arr[orig_best_ind]], 
                         # 0.5
-                        thresh_arr=[thresh_arr[-1]], 
+                        # thresh_arr=[thresh_arr[-1]], 
                         metric_arrs=test_metrics)
 
     describe_metrics(test_metrics, thresh_arr)
@@ -356,7 +364,4 @@ def get_test_metrics(dataset_orig_train, dataset_orig_val, dataset_orig_test, mo
         mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
 
-
     return test_metrics, mia_metrics
-
-

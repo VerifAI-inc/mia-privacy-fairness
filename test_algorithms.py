@@ -16,7 +16,7 @@ class TestAlgorithms:
         null_mitigator = NullMitigator()
         orig_metrics, orig_mia_metrics = null_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, orig_metrics, orig_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
-        #null_mitigator.run_explainer(dataset_orig_train, dataset_orig_test, model_type, SCALER)
+        # null_mitigator.run_explainer(dataset_orig_train, dataset_orig_test, model_type, SCALER)
         return orig_metrics, orig_mia_metrics
 
 

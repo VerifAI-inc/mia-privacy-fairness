@@ -34,13 +34,10 @@ class MIA_Attack_Result:
     # overall_accuracy
     accuracy : np.float64
 
-    
     #train acc and test accuracy
     tpr_ind : np.float64
     
     tnr_ind : np.float64
-
-
 
     # Ratio of test to train set size.
     # In Jayaraman et al. (https://arxiv.org/pdf/2005.10881.pdf) it is referred to

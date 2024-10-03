@@ -200,11 +200,26 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     X = X[:selected, :]
     y = y[:selected]
     y = y.reshape(-1,1)
+    
+    # print(f"Type of instance_weights: {type(f_dataset.instance_weights)}")
+    # print(f"Shape of instance_weights: {getattr(f_dataset.instance_weights, 'shape', 'N/A')}")
+    # print(f"Content of instance_weights: {f_dataset.instance_weights}")
+
+    # print(f"Type of protected_attributes: {type(f_dataset.protected_attributes)}")
+    # print(f"Shape of protected_attributes: {getattr(f_dataset.protected_attributes, 'shape', 'N/A')}")
+    # print(f"Content of protected_attributes: {f_dataset.protected_attributes}")
+
+    # Convert to lists if necessary
+    instance_weights_list = f_dataset.instance_weights.flatten().tolist() if isinstance(f_dataset.instance_weights, np.ndarray) else f_dataset.instance_weights
+    protected_attributes_list = f_dataset.protected_attributes.flatten().tolist() if isinstance(f_dataset.protected_attributes, np.ndarray) else f_dataset.protected_attributes
 
     # set weights and protected_attributes for the newly generated samples
     inc = X.shape[0]-f_dataset.features.shape[0]
-    new_weights = [random.choice(f_dataset.instance_weights) for _ in range(inc)]
-    new_attributes = [random.choice(f_dataset.protected_attributes) for _ in range(inc)]
+    new_weights = [random.choice(instance_weights_list) for _ in range(inc)]
+    new_attributes = [random.choice(protected_attributes_list) for _ in range(inc)]
+    
+    # new_attributes is 1D, reshape it to match the shape (n, 1)
+    new_attributes = np.array(new_attributes).reshape(-1, 1)
 
     # compose transformed dataset
     dataset_transf_train.features = np.concatenate((uf_dataset.features, X))
@@ -218,11 +233,14 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     X_ex = X[-int(n_extra):]
     y_ex = y[-int(n_extra):]
     y_ex = y_ex.reshape(-1,1)
-
+    
     # set weights and protected_attributes for the newly generated samples
     inc = int(n_extra)
-    new_weights = [random.choice(f_dataset.instance_weights) for _ in range(inc)]
-    new_attributes = [random.choice(f_dataset.protected_attributes) for _ in range(inc)]
+    new_weights = [random.choice(instance_weights_list) for _ in range(inc)]
+    new_attributes = [random.choice(protected_attributes_list) for _ in range(inc)]
+    
+    # new_attributes is 1D, reshape it to match the shape (n, 1)
+    new_attributes = np.array(new_attributes).reshape(-1, 1)
 
     # compose extra dataset
     dataset_extra_train.features = X_ex

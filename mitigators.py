@@ -17,7 +17,7 @@ from aif360.algorithms.postprocessing.calibrated_eq_odds_postprocessing\
         import CalibratedEqOddsPostprocessing
 from aif360.algorithms.postprocessing.eq_odds_postprocessing\
         import EqOddsPostprocessing
-#from aif360.algorithms.postprocessing.reject_option_classification\
+# from aif360.algorithms.postprocessing.reject_option_classification\
 #        import RejectOptionClassification
 from aif360.algorithms.postprocessing import RejectOptionClassification
 
@@ -26,6 +26,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from explainer import Explainer
+
+from plot_utils import plot
+import matplotlib as plt
 
 #oversampling
 from oversample import synthetic
@@ -606,4 +609,3 @@ class ROMitigator(BaseMitigator):
         describe_metrics(ro_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
 
         return ro_orig_metrics
-

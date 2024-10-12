@@ -97,15 +97,8 @@ class DatasetBuilder:
             catvar = [key for key in dict(df.dtypes)
                          if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
             
-            print("Categorical Variables", catvar)
-            
             for cat in catvar:
                 df[cat] = LabelEncoder().fit_transform(df[cat])
-                
-            catvar = [key for key in dict(df.dtypes)
-                        if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
-            
-            print("Categorical Variables", catvar)
 
             # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
             dataset = BinaryLabelDataset(
@@ -121,45 +114,53 @@ class DatasetBuilder:
             self.unprivileged_groups = [{'race': 0}]
             dataset = load_preproc_data_compas()
 
-        elif self.DATASET == 'german':
-            # 1:age ,2: foreign
-            protected_attribute_used = 1
-            if protected_attribute_used == 1:
-                self.privileged_groups = [{'age': 1}]
-                self.unprivileged_groups = [{'age': 0}]
-                dataset = GermanDataset(
-                    protected_attribute_names=['age'],           # this dataset also contains protected
-                                                                 # attribute for "sex" which we do not
-                                                                 # consider in this evaluation
-                    privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
-                    features_to_drop=['personal_status','sex'], # ignore sex-related attributes
-                )
-            else:
-                self.privileged_groups = [{'foreign': 1}]
-                self.unprivileged_groups = [{'foreign': 0}]
+        elif self.DATASET == 'german_age':
+            self.privileged_groups = [{'age': 1}]
+            self.unprivileged_groups = [{'age': 0}]
+            
+            def custom_preprocessing(df):
+                credit_map = {1: 1.0, 2: 0.0}
+                df['credit'] = df['credit'].replace(credit_map)
+                
+                print(df['credit'])
+                
+                return df
+            
+            dataset = GermanDataset(
+                protected_attribute_names=['age'],           # this dataset also contains protected
+                                                                # attribute for "sex" which we do not
+                                                                # consider in this evaluation
+                privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
+                features_to_drop=['personal_status','sex'], # ignore sex-related attributes
+                custom_preprocessing=custom_preprocessing
+            )
+        
+        elif self.DATASET == 'german_foreign':
+            self.privileged_groups = [{'foreign': 1}]
+            self.unprivileged_groups = [{'foreign': 0}]
 
-                default_mappings = {
-                    'label_maps': [{1.0: 'Good Credit', 2.0: 'Bad Credit'}],
-                    'protected_attribute_maps': [{1.0: 'No', 0.0: 'Yes'}]
-                }
+            default_mappings = {
+                'label_maps': [{1.0: 'Good Credit', 2.0: 'Bad Credit'}],
+                'protected_attribute_maps': [{1.0: 'No', 0.0: 'Yes'}]
+            }
 
-                categorical_features=['status', 'credit_history', 'purpose',
-                                     'savings', 'employment', 'other_debtors', 'property',
-                                     'installment_plans', 'housing', 'skill_level', 'telephone']
+            categorical_features=['status', 'credit_history', 'purpose',
+                                    'savings', 'employment', 'other_debtors', 'property',
+                                    'installment_plans', 'housing', 'skill_level', 'telephone']
 
-                def default_preprocessing(df):
-                    """Adds a derived sex attribute based on personal_status."""
-                    # TODO: ignores the value of privileged_classes for 'sex'
-                    #status_map = {'A91': 'male', 'A93': 'male', 'A94': 'male',
-                    #              'A92': 'female', 'A95': 'female'}
-                    #df['sex'] = df['personal_status'].replace(status_map)
+            def default_preprocessing(df):
+                """Adds a derived sex attribute based on personal_status."""
+                # TODO: ignores the value of privileged_classes for 'sex'
+                #status_map = {'A91': 'male', 'A93': 'male', 'A94': 'male',
+                #              'A92': 'female', 'A95': 'female'}
+                #df['sex'] = df['personal_status'].replace(status_map)
 
-                    status_map = {'A201': 'Yes', 'A202': 'No'}
-                    df['foreign'] = df['foreign_worker'].replace(status_map)
+                status_map = {'A201': 'Yes', 'A202': 'No'}
+                df['foreign'] = df['foreign_worker'].replace(status_map)
 
-                    return df
-
-                dataset = GermanDataset(
+                return df
+            
+            dataset = GermanDataset(
                     protected_attribute_names=['foreign'],       # this dataset also contains protected
                                                                  # attribute for "sex" which we do not
                                                                  # consider in this evaluation

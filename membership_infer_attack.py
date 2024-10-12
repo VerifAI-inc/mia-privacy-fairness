@@ -266,6 +266,11 @@ def run_threshold_estimator(
     # Run the attack based on the thresholds 
     ntrain = len(losses_train)
     ntest = len(losses_test)
+    
+    print(f"Number of training samples (ntrain): {ntrain}")
+    print(f"Number of test samples (ntest): {ntest}")
+
+    
     fpr, tpr, thresholds = roc_curve(
         np.concatenate((np.ones(ntrain), np.zeros(ntest))),
         # roc_curve uses classifier in the form of

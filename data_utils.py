@@ -138,16 +138,8 @@ class DatasetBuilder:
         elif self.DATASET == 'german_foreign':
             self.privileged_groups = [{'foreign': 1}]
             self.unprivileged_groups = [{'foreign': 0}]
-
-            default_mappings = {
-                'label_maps': [{1.0: 'Good Credit', 2.0: 'Bad Credit'}],
-                'protected_attribute_maps': [{1.0: 'No', 0.0: 'Yes'}]
-            }
-
-            categorical_features=['status', 'credit_history', 'purpose',
-                                    'savings', 'employment', 'other_debtors', 'property',
-                                    'installment_plans', 'housing', 'skill_level', 'telephone']
-
+            
+            
             def default_preprocessing(df):
                 """Adds a derived sex attribute based on personal_status."""
                 # TODO: ignores the value of privileged_classes for 'sex'
@@ -157,8 +149,28 @@ class DatasetBuilder:
 
                 status_map = {'A201': 'Yes', 'A202': 'No'}
                 df['foreign'] = df['foreign_worker'].replace(status_map)
+                
+                credit_map = {1: 1.0, 2: 0.0}
+                df['credit'] = df['credit'].replace(credit_map)
 
                 return df
+            
+            def custom_preprocessing(df):
+                
+                
+                print(df['credit'])
+                
+                return df
+
+            default_mappings = {
+                'label_maps': [{1.0: 'Good Credit', 0.0: 'Bad Credit'}],
+                'protected_attribute_maps': [{1.0: 'No', 0.0: 'Yes'}]
+            }
+
+            categorical_features=['status', 'credit_history', 'purpose',
+                                    'savings', 'employment', 'other_debtors', 'property',
+                                    'installment_plans', 'housing', 'skill_level', 'telephone']
+
             
             dataset = GermanDataset(
                     protected_attribute_names=['foreign'],       # this dataset also contains protected

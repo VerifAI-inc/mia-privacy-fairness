@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn
 
 #setup test models
@@ -12,7 +13,8 @@ from aif360.metrics import utils
 #Bias mitigation techniques
 from aif360.algorithms.preprocessing import DisparateImpactRemover, LFR, OptimPreproc, Reweighing
 from aif360.algorithms.inprocessing import AdversarialDebiasing, ARTClassifier, GerryFairClassifier, MetaFairClassifier, PrejudiceRemover
-from aif360.algorithms.inprocessing.exponentiated_gradient_reduction import ExponentiatedGradientReduction
+# from aif360.algorithms.inprocessing import ExponentiatedGradientReduction
+from aif360.sklearn.inprocessing import ExponentiatedGradientReduction
 from aif360.algorithms.postprocessing.calibrated_eq_odds_postprocessing\
         import CalibratedEqOddsPostprocessing
 from aif360.algorithms.postprocessing.eq_odds_postprocessing\
@@ -33,6 +35,9 @@ import matplotlib as plt
 #oversampling
 from oversample import synthetic
 
+from membership_infer_attack import run_mia_attack
+
+from collections import OrderedDict, defaultdict
 
 class BaseMitigator:
 
@@ -203,8 +208,8 @@ class ReweighMitigator(BaseMitigator):
 
 # Exponentiated Gradiant Reduction (In-processing)
 class EGRMitigator(BaseMitigator):
-
     mitigator_type = 'EGR Mitigator'
+ 
     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
                       egr_metrics, egr_mia_metrics, model_type, 
                       f_label, uf_label, 
@@ -233,6 +238,7 @@ class EGRMitigator(BaseMitigator):
         print('fitting EGR ...')
         #np.random.seed(0) #need for reproducibility
         egr_mod = ExponentiatedGradientReduction(estimator=model,
+                                                 prot_attr=['age'],
                                                 #  T=2,
                                                 eta0=2.0,
                                                 eps=0.01,
@@ -240,7 +246,10 @@ class EGRMitigator(BaseMitigator):
                                                 drop_prot_attr=False)
 
         # After applying EGR
-        egr_mod.fit(dataset)
+        # Convert dataset.features (NumPy array) to a DataFrame
+        X_df = pd.DataFrame(dataset.features, columns=dataset.feature_names)
+        y_series = pd.Series(dataset.labels.ravel())
+        egr_mod.fit(X_df, y_series)
 
         #validate
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
@@ -250,6 +259,7 @@ class EGRMitigator(BaseMitigator):
                            dataset=dataset_val_pred,
                            model=egr_mod,
                            thresh_arr=thresh_arr, metric_arrs=None)
+        
         egr_best_ind = np.argmax(val_metrics['bal_acc'])
 
         disp_imp = np.array(val_metrics['disp_imp'])
@@ -274,8 +284,25 @@ class EGRMitigator(BaseMitigator):
 
         describe_metrics(egr_metrics, [thresh_arr[egr_best_ind]])
         
-        egr_metrics, egr_mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, egr_metrics, egr_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        # Runnning MIA attack based on subgroups
+        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, egr_mod)
+            
+        for i in results:
+            print(i)
+            
+        # metrics array to hold the results
+        if egr_mia_metrics is None:
+            egr_mia_metrics = defaultdict(list)
 
+        # Add the results to test_metrics object
+        # MIA results for overall dataset and subpopulations
+        for i in range(len(results)):
+            egr_mia_metrics[f"{results[i].get_name()}_mia_auc"].append(results[i].get_auc())
+            egr_mia_metrics[f"{results[i].get_name()}_mia_privacy_risk"].append(results[i].get_privacy_risk())
+            egr_mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
+            egr_mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
+            egr_mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
+        
         #exp_grad_red_pred = exp_grad_red.predict(dataset_orig_test)
         return egr_metrics, egr_mia_metrics
 

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn
+from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn, get_egr_model_metrics
 
 #setup test models
 from models import TModel, MLPClassifierWrapper 
@@ -249,6 +249,8 @@ class EGRMitigator(BaseMitigator):
         # Convert dataset.features (NumPy array) to a DataFrame
         X_df = pd.DataFrame(dataset.features, columns=dataset.feature_names)
         y_series = pd.Series(dataset.labels.ravel())
+        print("INSIDE EGR INPUT:", X_df.head(), " and ", X_df.shape)
+        print("INSIDE EGR OUTPUT:", y_series.head(), " and ", y_series.shape)
         egr_mod.fit(X_df, y_series)
 
         #validate
@@ -284,6 +286,8 @@ class EGRMitigator(BaseMitigator):
 
         describe_metrics(egr_metrics, [thresh_arr[egr_best_ind]])
         
+        train_test_egr = get_egr_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, egr_mod, SCALER)
+        
         # Runnning MIA attack based on subgroups
         results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, egr_mod)
             
@@ -304,7 +308,7 @@ class EGRMitigator(BaseMitigator):
             egr_mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
         
         #exp_grad_red_pred = exp_grad_red.predict(dataset_orig_test)
-        return egr_metrics, egr_mia_metrics
+        return train_test_egr, egr_metrics, egr_mia_metrics
 
 
 # Prejudice Remover (Post-processing)

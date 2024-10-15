@@ -424,3 +424,52 @@ def get_orig_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_g
     results["test_1_1"] = calculate_accuracy(mod_orig, f_priv_dataset)
     
     return results
+
+def get_egr_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, egr_mod, SCALER):
+    results = {}
+    # indices of examples in the unprivileged and privileged groups
+    indices, priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
+
+    # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
+    unprivileged_dataset = dataset_orig_train.subset(indices) # unprivileaged
+    privileged_dataset = dataset_orig_train.subset(priv_indices) # privilegaed
+    
+    # subgroups
+    uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
+    uf_unpriv_dataset = unprivileged_dataset.subset(uf_unpriv_indices)
+    f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
+    f_unpriv_dataset = unprivileged_dataset.subset(f_unpriv_indices)
+    uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
+    uf_priv_dataset = privileged_dataset.subset(uf_priv_indices)
+    f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
+    f_priv_dataset = privileged_dataset.subset(f_priv_indices)
+    
+    results["train_0_0"] = calculate_accuracy(egr_mod, uf_unpriv_dataset)
+    results["train_0_1"] = calculate_accuracy(egr_mod, f_unpriv_dataset)
+    results["train_1_0"] = calculate_accuracy(egr_mod, uf_priv_dataset)
+    results["train_1_1"] = calculate_accuracy(egr_mod, f_priv_dataset)
+    
+    # TESTING ACCURACIES
+    # indices of examples in the unprivileged and privileged groups
+    indices, priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
+
+    # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
+    unprivileged_dataset = dataset_orig_test.subset(indices) # unprivileaged
+    privileged_dataset = dataset_orig_test.subset(priv_indices) # privilegaed
+    
+    # subgroups
+    uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
+    uf_unpriv_dataset = unprivileged_dataset.subset(uf_unpriv_indices)
+    f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
+    f_unpriv_dataset = unprivileged_dataset.subset(f_unpriv_indices)
+    uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
+    uf_priv_dataset = privileged_dataset.subset(uf_priv_indices)
+    f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
+    f_priv_dataset = privileged_dataset.subset(f_priv_indices)
+    
+    results["test_0_0"] = calculate_accuracy(egr_mod, uf_unpriv_dataset)
+    results["test_0_1"] = calculate_accuracy(egr_mod, f_unpriv_dataset)
+    results["test_1_0"] = calculate_accuracy(egr_mod, uf_priv_dataset)
+    results["test_1_1"] = calculate_accuracy(egr_mod, f_priv_dataset)
+    
+    return results

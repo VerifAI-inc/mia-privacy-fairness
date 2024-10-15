@@ -241,7 +241,7 @@ class EGRMitigator(BaseMitigator):
                                                  prot_attr=['age'],
                                                 #  T=2,
                                                 eta0=2.0,
-                                                eps=0.01,
+                                                eps=0.001,
                                                 constraints="EqualizedOdds",
                                                 drop_prot_attr=False)
 

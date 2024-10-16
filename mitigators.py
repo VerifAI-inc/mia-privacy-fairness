@@ -249,9 +249,7 @@ class EGRMitigator(BaseMitigator):
         # Convert dataset.features (NumPy array) to a DataFrame
         X_df = pd.DataFrame(dataset.features, columns=dataset.feature_names)
         y_series = pd.Series(dataset.labels.ravel())
-        print("INSIDE EGR INPUT:", X_df.head(), " and ", X_df.shape)
-        print("INSIDE EGR OUTPUT:", y_series.head(), " and ", y_series.shape)
-        egr_mod.fit(X_df, y_series)
+        egr_mod = egr_mod.fit(X_df, y_series)
 
         #validate
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
@@ -309,7 +307,6 @@ class EGRMitigator(BaseMitigator):
         
         #exp_grad_red_pred = exp_grad_red.predict(dataset_orig_test)
         return train_test_egr, egr_metrics, egr_mia_metrics
-
 
 # Prejudice Remover (Post-processing)
 class PRMitigator(BaseMitigator):
@@ -507,8 +504,6 @@ class CPPMitigator(BaseMitigator):
         describe_metrics(cpp_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
 
         return cpp_orig_metrics
-
-
 
 # Reject Option (Post-processing)
 class ROMitigator(BaseMitigator):

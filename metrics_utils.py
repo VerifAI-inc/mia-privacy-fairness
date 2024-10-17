@@ -20,6 +20,8 @@ import matplotlib.pyplot as plt
 
 from oversample import group_indices
 
+import pandas as pd
+
 def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, model, thresh_arr, metric_arrs):
     try:
         #torch classifier
@@ -38,6 +40,12 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
             pos_ind = int(dataset.favorable_label)
             neg_ind = int(dataset.unfavorable_label)
             
+        # Model with _pmf_predict (e.g., ExponentiatedGradient)
+        elif hasattr(model, '_pmf_predict'):
+            y_val_pred_prob = model._pmf_predict(pd.DataFrame(dataset.features, columns=dataset.feature_names))
+            pos_ind = 0
+            neg_ind = 1
+            
         # sklearn classifier
         else:
             y_val_pred_prob = model.predict_proba(dataset.features)
@@ -49,7 +57,6 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         y_val_pred_prob = model.predict(dataset).scores
         pos_ind = 0
         neg_ind = 1
-        print('y_val_pred_prob: ', y_val_pred_prob)
 
     if metric_arrs is None:
         metric_arrs = defaultdict(list)
@@ -70,6 +77,11 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
 
         metric_arrs['bal_acc'].append((metric.true_positive_rate()
                                      + metric.true_negative_rate()) / 2)
+        # for debug
+        print(f"Accuracy for threshold: {thresh}  is: {metric.accuracy()}")
+        print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
+
+
         
         # print other statistics for debugging
         if len(thresh_arr) == 1:
@@ -77,11 +89,8 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
             print("True negative rate is: ", metric.true_negative_rate())
             print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
             print("Test Accuracy is: ", metric.accuracy())
-        else:
-            # for debug
-            print(f"Accuracy for threshold: {thresh}  is: {metric.accuracy()}")
-            print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
-    
+
+            
         metric_arrs['avg_odds_diff'].append(metric.average_odds_difference())
         metric_arrs['disp_imp'].append(1 - min((metric.disparate_impact()), 1/metric.disparate_impact()))
         metric_arrs['stat_par_diff'].append(metric.statistical_parity_difference())

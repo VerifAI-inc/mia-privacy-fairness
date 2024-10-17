@@ -14,7 +14,8 @@ from aif360.metrics import utils
 from aif360.algorithms.preprocessing import DisparateImpactRemover, LFR, OptimPreproc, Reweighing
 from aif360.algorithms.inprocessing import AdversarialDebiasing, ARTClassifier, GerryFairClassifier, MetaFairClassifier, PrejudiceRemover
 # from aif360.algorithms.inprocessing import ExponentiatedGradientReduction
-from aif360.sklearn.inprocessing import ExponentiatedGradientReduction
+# from aif360.sklearn.inprocessing import ExponentiatedGradientReduction
+from fairlearn.reductions import ExponentiatedGradient, EqualizedOdds
 from aif360.algorithms.postprocessing.calibrated_eq_odds_postprocessing\
         import CalibratedEqOddsPostprocessing
 from aif360.algorithms.postprocessing.eq_odds_postprocessing\
@@ -231,25 +232,52 @@ class EGRMitigator(BaseMitigator):
             dataset = dataset_orig_train.copy(deepcopy=True)
             dataset_val_pred = dataset_orig_val.copy(deepcopy=True)
             dataset_test_pred = dataset_orig_test.copy(deepcopy=True)
+        
+        dataset.labels = dataset.labels.ravel() 
+            
+       # Convert AIF360 dataset to pandas DataFrame and Series
+        X_train = pd.DataFrame(dataset.features, columns=dataset.feature_names)
+        y_train = pd.Series(dataset.labels.ravel())
 
-        dataset.labels = dataset.labels.ravel()
+        # X_val = pd.DataFrame(dataset_val_pred.features, columns=dataset_val_pred.feature_names)
+        # y_val = pd.Series(dataset_val_pred.labels.ravel())
+
+        # X_test = pd.DataFrame(dataset_test_pred.features, columns=dataset_test_pred.feature_names)
+        # y_test = pd.Series(dataset_test_pred.labels.ravel())
+
+        # Define the protected attribute(s)
+        protected_attribute = dataset.protected_attribute_names[0]
+
+        # Extract the protected attribute as a Series
+        A_train = pd.Series(dataset.protected_attributes[:, 0], name=protected_attribute)
+        
+        # Prepare the base estimator
         test_model = TModel(model_type)
-        model = test_model.get_model()
-        print('fitting EGR ...')
-        #np.random.seed(0) #need for reproducibility
-        egr_mod = ExponentiatedGradientReduction(estimator=model,
-                                                 prot_attr=['age'],
-                                                #  T=2,
-                                                eta0=2.0,
-                                                eps=0.001,
-                                                constraints="EqualizedOdds",
-                                                drop_prot_attr=False)
+        base_estimator = test_model.get_model()
+        
+        # Define the fairness constraint
+        constraints = EqualizedOdds()
 
-        # After applying EGR
-        # Convert dataset.features (NumPy array) to a DataFrame
-        X_df = pd.DataFrame(dataset.features, columns=dataset.feature_names)
-        y_series = pd.Series(dataset.labels.ravel())
-        egr_mod = egr_mod.fit(X_df, y_series)
+        # Create the ExponentiatedGradient mitigator from fairlearn
+        mitigator = ExponentiatedGradient(estimator=base_estimator, constraints=constraints)
+
+        # Fit the mitigator
+        print('Fitting ExponentiatedGradient ...')
+        mitigator = mitigator.fit(X_train, y_train, sensitive_features=A_train)
+        print("Done fitting")
+        
+        # print('fitting EGR ...')
+        # #np.random.seed(0) #need for reproducibility
+        # egr_mod = ExponentiatedGradientReduction(estimator=model,
+        #                                          prot_attr=dataset.protected_attribute_names,
+        #                                         #  T=2,
+        #                                         eta0=2.0,
+        #                                         eps=0.001,
+        #                                         constraints="EqualizedOdds",
+        #                                         drop_prot_attr=True)
+
+        # # After applying EGR
+        # egr_mod = egr_mod.fit(X_train, y_train)
 
         #validate
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
@@ -257,10 +285,11 @@ class EGRMitigator(BaseMitigator):
         val_metrics = test(f_label, uf_label,
                            unprivileged_groups, privileged_groups,
                            dataset=dataset_val_pred,
-                           model=egr_mod,
+                           model=mitigator,
                            thresh_arr=thresh_arr, metric_arrs=None)
         
-        egr_best_ind = np.argmax(val_metrics['bal_acc'])
+        # egr_best_ind = np.argmax(val_metrics['bal_acc'])
+        egr_best_ind = -1
 
         disp_imp = np.array(val_metrics['disp_imp'])
         disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
@@ -279,15 +308,15 @@ class EGRMitigator(BaseMitigator):
         egr_metrics = test(f_label, uf_label,
                            unprivileged_groups, privileged_groups,
                            dataset=dataset_test_pred,
-                           model=egr_mod,
+                           model=mitigator,
                            thresh_arr=[thresh_arr[egr_best_ind]], metric_arrs=egr_metrics)
 
         describe_metrics(egr_metrics, [thresh_arr[egr_best_ind]])
         
-        train_test_egr = get_egr_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, egr_mod, SCALER)
+        train_test_egr = get_egr_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, mitigator, SCALER)
         
         # Runnning MIA attack based on subgroups
-        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, egr_mod)
+        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mitigator)
             
         for i in results:
             print(i)

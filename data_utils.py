@@ -7,7 +7,7 @@ from aif360.datasets import AdultDataset, GermanDataset, CompasDataset, BankData
 from aif360.datasets import MEPSDataset19
 from aif360.datasets import MEPSDataset20
 from aif360.datasets import MEPSDataset21
-from aif360.datasets import BinaryLabelDataset
+from aif360.datasets import BinaryLabelDataset, StandardDataset
 
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions\
             import load_preproc_data_adult, load_preproc_data_german, load_preproc_data_compas
@@ -43,10 +43,29 @@ class DatasetBuilder:
         elif self.DATASET == 'bank':
             self.privileged_groups = [{'age': 1}]
             self.unprivileged_groups = [{'age': 0}]
-            dataset = BankDataset(
-                protected_attribute_names=['age'],           # this dataset also contains protected
-                privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
+            
+            df = pd.read_csv("./data/bank_preprocessed.csv", index_col=0)
+
+            # Create a BinaryLabelDataset using the binary labels ('y') and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  
+                unfavorable_label=0,  
+                df=df,
+                label_names=['y'],  
+                protected_attribute_names=['age']
             )
+            # dataset = StandardDataset(
+            #     df=df,
+            #     label_name='y',  # Corrected: label_name should be a string
+            #     favorable_classes=[1],  # Corrected: match the data type of the labels
+            #     protected_attribute_names=['age']  # The protected attribute
+            #     # privileged_classes=[lambda x: x >= 25]  # Assuming 'age' is numeric
+            # )
+
+            # dataset = BankDataset(
+            #     protected_attribute_names=['age'],           # this dataset also contains protected
+            #     privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
+            # )
             
         elif self.DATASET == 'law_gender_aif':
             self.privileged_groups = [{'gender': 1}]

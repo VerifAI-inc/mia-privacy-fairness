@@ -102,17 +102,29 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
 
     # Getting per example loss for train/test dataset
     if model_type == "dt":
-        # per example loss for train
-        preds_train = pd.DataFrame(mod_orig.predict_proba(dataset_orig_train.features), columns=["0", "1"])
-        preds_train["label"] = dataset_orig_train.labels
-        # loss_train = compute_loss_dt(preds_train["1"])
-        loss_train = log_losses(preds_train["label"], preds_train["1"])
+        if hasattr(mod_orig, '_pmf_predict'): # eg
+            preds_train = pd.DataFrame(mod_orig._pmf_predict(dataset_orig_train.features), columns=["0", "1"])
+            preds_train["label"] = dataset_orig_train.labels
+            # loss_train = compute_loss_dt(preds_train["1"])
+            loss_train = log_losses(preds_train["label"], preds_train["1"])
+            
+            # per example loss for test
+            preds_test = pd.DataFrame(mod_orig._pmf_predict(dataset_orig_test.features), columns=["0", "1"])
+            preds_test["label"] = dataset_orig_test.labels
+            # loss_test = compute_loss_dt(preds_test["1"])   
+            loss_test = log_losses(preds_test["label"], preds_test["1"])   
+        else:
+            # per example loss for train
+            preds_train = pd.DataFrame(mod_orig.predict_proba(dataset_orig_train.features), columns=["0", "1"])
+            preds_train["label"] = dataset_orig_train.labels
+            # loss_train = compute_loss_dt(preds_train["1"])
+            loss_train = log_losses(preds_train["label"], preds_train["1"])
         
-        # per example loss for test
-        preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
-        preds_test["label"] = dataset_orig_test.labels
-        # loss_test = compute_loss_dt(preds_test["1"])   
-        loss_test = log_losses(preds_test["label"], preds_test["1"])        
+            # per example loss for test
+            preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
+            preds_test["label"] = dataset_orig_test.labels
+            # loss_test = compute_loss_dt(preds_test["1"])   
+            loss_test = log_losses(preds_test["label"], preds_test["1"])        
     else: #model_type == "lr" or model_type == "nn":
         # per example loss for train
         if model_type != "nn":

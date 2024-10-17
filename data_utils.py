@@ -3,7 +3,7 @@ import random
 from imblearn.over_sampling import ADASYN
 
 # Datasets
-from aif360.datasets import AdultDataset, GermanDataset, CompasDataset, BankDataset
+from aif360.datasets import AdultDataset, GermanDataset, CompasDataset, BankDataset, LawSchoolGPADataset
 from aif360.datasets import MEPSDataset19
 from aif360.datasets import MEPSDataset20
 from aif360.datasets import MEPSDataset21
@@ -11,6 +11,10 @@ from aif360.datasets import BinaryLabelDataset
 
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions\
             import load_preproc_data_adult, load_preproc_data_german, load_preproc_data_compas
+            
+import pandas as pd
+
+from sklearn.preprocessing import LabelEncoder
 
 class DatasetBuilder:
 
@@ -43,7 +47,103 @@ class DatasetBuilder:
                 protected_attribute_names=['age'],           # this dataset also contains protected
                 privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
             )
+            
+        elif self.DATASET == 'law_gender_aif':
+            self.privileged_groups = [{'gender': 1}]
+            self.unprivileged_groups = [{'gender': 0}]
+            
+            def custom_preprocessing(df):
+                """Custom preprocessing to convert categorical features to numeric and create classification labels."""
+                # Map gender: male = 1, female = 0
+                df['gender'] = df['gender'].map({'male': 1, 'female': 0})
+                
+                # Map race: white = 1, black = 0
+                df['race'] = df['race'].map({'white': 1, 'black': 0})
+                
+                # Create binary classification labels based on GPA
+                gpa_threshold = 0.6  # You can adjust the threshold as needed
+                df['gpa_class'] = (df['zfygpa'] >= gpa_threshold).astype(int)  # 1 for high GPA, 0 for low GPA
+                
+                df = df.drop(columns=['zfygpa'])
+                
+                return df
 
+            # Load dataset and preprocess for classification
+            reg_dataset = LawSchoolGPADataset(
+                protected_attribute_names=['gender'],  # Use 'gender' as the protected attribute
+                privileged_classes=[[1]],              # 'male' is the privileged class
+                dep_var_name='gpa_class',              # Use 'gpa_class' as the new target variable for classification
+                custom_preprocessing=custom_preprocessing  # Apply custom preprocessing
+            )
+            
+            # Now, convert the dataset to a pandas DataFrame
+            df, _ = reg_dataset.convert_to_dataframe()
+
+            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
+                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                df=df,
+                label_names=['gpa_class'],  # The newly created binary label
+                protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
+            )
+            
+        elif self.DATASET == 'law_sex':
+            self.privileged_groups = [{'gender': 0}]
+            self.unprivileged_groups = [{'gender': 1}]
+            
+            df = pd.read_csv("./data/kaggle_preprocessed_.csv")
+
+            catvar = [key for key in dict(df.dtypes)
+                         if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
+            
+            print("Categorical Variables", catvar)
+            
+            for cat in catvar:
+                df[cat] = LabelEncoder().fit_transform(df[cat])
+                
+            catvar = [key for key in dict(df.dtypes)
+                        if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
+            
+            print("Categorical Variables", catvar)
+
+            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
+                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                df=df,
+                label_names=['pass_bar'],  # The newly created binary label
+                protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
+            )
+        
+        elif self.DATASET == 'law_race':
+            self.privileged_groups = [{'race': 1}]
+            self.unprivileged_groups = [{'race': 0}]
+            
+            df = pd.read_csv("./data/kaggle_preprocessed_.csv")
+
+            catvar = [key for key in dict(df.dtypes)
+                         if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
+            
+            print("Categorical Variables", catvar)
+            
+            for cat in catvar:
+                df[cat] = LabelEncoder().fit_transform(df[cat])
+                
+            catvar = [key for key in dict(df.dtypes)
+                        if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
+            
+            print("Categorical Variables", catvar)
+
+            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
+                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                df=df,
+                label_names=['pass_bar'],  # The newly created binary label
+                protected_attribute_names=['race']  # The protected attribute (e.g., black race)
+            )
+            
         elif self.DATASET == 'compas':
             self.privileged_groups = [{'race': 1}]
             self.unprivileged_groups = [{'race': 0}]
@@ -101,8 +201,9 @@ class DatasetBuilder:
         elif self.DATASET == 'grade':
             #load dataset and print shape
             dataset_loc = "./student/student-por.csv"
-            df = pd.read_csv(dataset_loc, sep=";")
+            df = pd.read_csv(dataset_loc, sep=",")
             print('Dataset consists of {} Observations and {} Variables'.format(df.shape[0],df.shape[1]))
+            print(df.columns)
             df.drop(['G1', 'G2'], inplace=True, axis=1)
             features = ['school', 'sex', 'age', 'address', 'famsize', 'Pstatus', 'Medu', 'Fedu',
                    'Mjob', 'Fjob', 'reason', 'guardian', 'traveltime', 'studytime',
@@ -184,9 +285,12 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     sample_features = np.concatenate((f_dataset.features, inflated_uf_features))
     inflated_uf_labels = np.repeat(uf_dataset.labels, inflate_rate, axis=0)
     sample_labels = np.concatenate((f_dataset.labels, inflated_uf_labels))
+    
 
     # oversampling favorable samples
-    # X: inflated dataset with synthetic samples of f_label attached to the end 
+    # X: inflated dataset with synthetic samples of f_label attached to the end
+
+    # Now apply ADASYN oversampling
     oversample = ADASYN(sampling_strategy='minority')
     X, y = oversample.fit_resample(sample_features, sample_labels)
     y = y.reshape(-1,1)
@@ -200,11 +304,26 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     X = X[:selected, :]
     y = y[:selected]
     y = y.reshape(-1,1)
+    
+    # print(f"Type of instance_weights: {type(f_dataset.instance_weights)}")
+    # print(f"Shape of instance_weights: {getattr(f_dataset.instance_weights, 'shape', 'N/A')}")
+    # print(f"Content of instance_weights: {f_dataset.instance_weights}")
+
+    # print(f"Type of protected_attributes: {type(f_dataset.protected_attributes)}")
+    # print(f"Shape of protected_attributes: {getattr(f_dataset.protected_attributes, 'shape', 'N/A')}")
+    # print(f"Content of protected_attributes: {f_dataset.protected_attributes}")
+
+    # Convert to lists if necessary
+    instance_weights_list = f_dataset.instance_weights.flatten().tolist() if isinstance(f_dataset.instance_weights, np.ndarray) else f_dataset.instance_weights
+    protected_attributes_list = f_dataset.protected_attributes.flatten().tolist() if isinstance(f_dataset.protected_attributes, np.ndarray) else f_dataset.protected_attributes
 
     # set weights and protected_attributes for the newly generated samples
     inc = X.shape[0]-f_dataset.features.shape[0]
-    new_weights = [random.choice(f_dataset.instance_weights) for _ in range(inc)]
-    new_attributes = [random.choice(f_dataset.protected_attributes) for _ in range(inc)]
+    new_weights = [random.choice(instance_weights_list) for _ in range(inc)]
+    new_attributes = [random.choice(protected_attributes_list) for _ in range(inc)]
+    
+    # new_attributes is 1D, reshape it to match the shape (n, 1)
+    new_attributes = np.array(new_attributes).reshape(-1, 1)
 
     # compose transformed dataset
     dataset_transf_train.features = np.concatenate((uf_dataset.features, X))
@@ -218,11 +337,14 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     X_ex = X[-int(n_extra):]
     y_ex = y[-int(n_extra):]
     y_ex = y_ex.reshape(-1,1)
-
+    
     # set weights and protected_attributes for the newly generated samples
     inc = int(n_extra)
-    new_weights = [random.choice(f_dataset.instance_weights) for _ in range(inc)]
-    new_attributes = [random.choice(f_dataset.protected_attributes) for _ in range(inc)]
+    new_weights = [random.choice(instance_weights_list) for _ in range(inc)]
+    new_attributes = [random.choice(protected_attributes_list) for _ in range(inc)]
+    
+    # new_attributes is 1D, reshape it to match the shape (n, 1)
+    new_attributes = np.array(new_attributes).reshape(-1, 1)
 
     # compose extra dataset
     dataset_extra_train.features = X_ex

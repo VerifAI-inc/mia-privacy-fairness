@@ -37,7 +37,6 @@ class Explainer():
         unprivileged_dataset = dataset.subset(indices) # unprivileaged
         privileged_dataset = dataset.subset(priv_indices) # privilegaed
 
-
         model = RandomForestClassifier(n_estimators=100, min_samples_leaf=5)
         model.fit(dataset_orig_train.features, dataset_orig_train.labels.ravel())
 

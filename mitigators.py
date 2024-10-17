@@ -17,7 +17,7 @@ from aif360.algorithms.postprocessing.calibrated_eq_odds_postprocessing\
         import CalibratedEqOddsPostprocessing
 from aif360.algorithms.postprocessing.eq_odds_postprocessing\
         import EqOddsPostprocessing
-#from aif360.algorithms.postprocessing.reject_option_classification\
+# from aif360.algorithms.postprocessing.reject_option_classification\
 #        import RejectOptionClassification
 from aif360.algorithms.postprocessing import RejectOptionClassification
 
@@ -26,6 +26,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from explainer import Explainer
+
+from plot_utils import plot
+import matplotlib as plt
 
 #oversampling
 from oversample import synthetic
@@ -203,7 +206,7 @@ class EGRMitigator(BaseMitigator):
 
     mitigator_type = 'EGR Mitigator'
     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
-                      egr_metrics, model_type, 
+                      egr_metrics, egr_mia_metrics, model_type, 
                       f_label, uf_label, 
                       unprivileged_groups, privileged_groups, 
                       THRESH_ARR, DISPLAY, SCALER):
@@ -230,12 +233,14 @@ class EGRMitigator(BaseMitigator):
         print('fitting EGR ...')
         #np.random.seed(0) #need for reproducibility
         egr_mod = ExponentiatedGradientReduction(estimator=model,
-                                                 T=2,
-                                                 eps=0.01,
-                                                 constraints="EqualizedOdds",
-                                                 drop_prot_attr=False)
+                                                #  T=2,
+                                                eta0=2.0,
+                                                eps=0.01,
+                                                constraints="EqualizedOdds",
+                                                drop_prot_attr=False)
+
+        # After applying EGR
         egr_mod.fit(dataset)
-        print('Done fitting EGR ...')
 
         #validate
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
@@ -268,9 +273,11 @@ class EGRMitigator(BaseMitigator):
                            thresh_arr=[thresh_arr[egr_best_ind]], metric_arrs=egr_metrics)
 
         describe_metrics(egr_metrics, [thresh_arr[egr_best_ind]])
+        
+        egr_metrics, egr_mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, egr_metrics, egr_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         #exp_grad_red_pred = exp_grad_red.predict(dataset_orig_test)
-        return egr_metrics
+        return egr_metrics, egr_mia_metrics
 
 
 # Prejudice Remover (Post-processing)
@@ -606,4 +613,3 @@ class ROMitigator(BaseMitigator):
         describe_metrics(ro_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
 
         return ro_orig_metrics
-

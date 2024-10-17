@@ -16,7 +16,7 @@ class TestAlgorithms:
         null_mitigator = NullMitigator()
         orig_metrics, orig_mia_metrics = null_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, orig_metrics, orig_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
-        #null_mitigator.run_explainer(dataset_orig_train, dataset_orig_test, model_type, SCALER)
+        # null_mitigator.run_explainer(dataset_orig_train, dataset_orig_test, model_type, SCALER)
         return orig_metrics, orig_mia_metrics
 
 
@@ -48,12 +48,12 @@ class TestAlgorithms:
 
         return reweigh_metrics, reweigh_mia_metrics
 
-    def run_egr(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, egr_metrics, model_type, f_label, uf_label, unprivileged_groups, privileged_groups,THRESH_ARR, DISPLAY, SCALER):
+    def run_egr(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, egr_metrics, egr_mia_metrics, model_type, f_label, uf_label, unprivileged_groups, privileged_groups,THRESH_ARR, DISPLAY, SCALER):
         print('\n------------------------------\n')
         print('\n[INFO:] in-processing Exponentiation Gradient Reduction ...... \n')
         print('\n------------------------------\n')
         egr_mitigator = EGRMitigator()
-        egr_metrics = egr_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, egr_metrics, model_type, f_label, uf_label, unprivileged_groups, privileged_groups,THRESH_ARR, DISPLAY, SCALER)
+        egr_metrics = egr_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, egr_metrics, egr_mia_metrics, model_type, f_label, uf_label, unprivileged_groups, privileged_groups,THRESH_ARR, DISPLAY, SCALER)
 
         return egr_metrics
 

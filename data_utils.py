@@ -111,13 +111,7 @@ class DatasetBuilder:
             self.privileged_groups = [{'gender': 1}]
             self.unprivileged_groups = [{'gender': 0}]
             
-            df = pd.read_csv("./data/kaggle_preprocessed.csv")
-
-            catvar = [key for key in dict(df.dtypes)
-                         if dict(df.dtypes)[key] in ['object'] ] # Categorical Variable
-            
-            for cat in catvar:
-                df[cat] = LabelEncoder().fit_transform(df[cat])
+            df = pd.read_csv("./data/law_preprocessed.csv")
 
             # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
             dataset = BinaryLabelDataset(
@@ -126,6 +120,21 @@ class DatasetBuilder:
                 df=df,
                 label_names=['pass_bar'],  # The newly created binary label
                 protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
+            )
+        
+        elif self.DATASET == 'law_race':
+            self.privileged_groups = [{'race': 1}]
+            self.unprivileged_groups = [{'race': 0}]
+            
+            df = pd.read_csv("./data/law_preprocessed.csv")
+
+            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
+                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                df=df,
+                label_names=['pass_bar'],  # The newly created binary label
+                protected_attribute_names=['race']  # The protected attribute (e.g., black race)
             )
             
         elif self.DATASET == 'compas':

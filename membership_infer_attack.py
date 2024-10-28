@@ -194,10 +194,10 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
     
 def run_threshold_mia_attack(name, loss_train,loss_test):
     # Run the attack based on the thresholds 
-    ntrain = len(loss_train)
-    ntest = len(loss_test)
+    ntrain = len(loss_train) # 5
+    ntest = len(loss_test) # 5
     fpr, tpr, thresholds = roc_curve(
-        np.concatenate((np.ones(ntrain), np.zeros(ntest))),
+        np.concatenate((np.ones(ntrain), np.zeros(ntest))), # [1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
         # roc_curve uses classifier in the form of
         # "score >= threshold ==> predict positive", while training data has lower
         # loss, so we negate the loss.

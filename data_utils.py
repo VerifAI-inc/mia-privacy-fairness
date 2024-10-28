@@ -107,6 +107,46 @@ class DatasetBuilder:
                 protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
             )
             
+        elif self.DATASET == 'law_race_aif':
+            self.privileged_groups = [{'race': 1}]
+            self.unprivileged_groups = [{'race': 0}]
+            
+            def custom_preprocessing(df):
+                """Custom preprocessing to convert categorical features to numeric and create classification labels."""
+                # Map gender: male = 1, female = 0
+                df['gender'] = df['gender'].map({'male': 1, 'female': 0})
+                
+                # Map race: white = 1, black = 0
+                df['race'] = df['race'].map({'white': 1, 'black': 0})
+                
+                # Create binary classification labels based on GPA
+                gpa_threshold = 0.6  # You can adjust the threshold as needed
+                df['gpa_class'] = (df['zfygpa'] >= gpa_threshold).astype(int)  # 1 for high GPA, 0 for low GPA
+                
+                df = df.drop(columns=['zfygpa'])
+                
+                return df
+
+            # Load dataset and preprocess for classification
+            reg_dataset = LawSchoolGPADataset(
+                protected_attribute_names=['race'],  # Use 'race' as the protected attribute
+                privileged_classes=[[1]],              # 'male' is the privileged class
+                dep_var_name='gpa_class',              # Use 'gpa_class' as the new target variable for classification
+                custom_preprocessing=custom_preprocessing  # Apply custom preprocessing
+            )
+            
+            # Now, convert the dataset to a pandas DataFrame
+            df, _ = reg_dataset.convert_to_dataframe()
+
+            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
+                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                df=df,
+                label_names=['gpa_class'],  # The newly created binary label
+                protected_attribute_names=['race']  # The protected attribute (e.g., gender)
+            )
+            
         elif self.DATASET == 'law_sex':
             self.privileged_groups = [{'gender': 1}]
             self.unprivileged_groups = [{'gender': 0}]
@@ -130,8 +170,8 @@ class DatasetBuilder:
 
             # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
             dataset = BinaryLabelDataset(
-                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
-                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                favorable_label=1,  
+                unfavorable_label=0, 
                 df=df,
                 label_names=['pass_bar'],  # The newly created binary label
                 protected_attribute_names=['race']  # The protected attribute (e.g., black race)

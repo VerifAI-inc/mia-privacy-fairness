@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn, get_egr_model_metrics
+from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn, get_test_metrics_for_eg, get_egr_model_metrics
 
 #setup test models
 from models import TModel, MLPClassifierWrapper 
@@ -40,6 +40,10 @@ from membership_infer_attack import run_mia_attack
 
 from collections import OrderedDict, defaultdict
 
+from aif360.datasets import BinaryLabelDataset
+
+from privacy_meter.dataset import Dataset
+
 class BaseMitigator:
 
     def __init__(self):
@@ -54,13 +58,15 @@ class NullMitigator(BaseMitigator):
 
     mitigator_type = 'No Mitigator'
     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, 
-                      model_type, orig_metrics, orig_mia_metrics,
-                      f_label, uf_label, 
-                      unprivileged_groups, privileged_groups, 
-                      THRESH_ARR, DISPLAY, SCALER):
+                      model_type, orig_metrics, orig_mia_metrics, f_label, uf_label, 
+                      unprivileged_groups, privileged_groups, ATTACK, THRESH_ARR, 
+                      DISPLAY, SCALER, target_dataset, reference_dataset):
         dataset = dataset_orig_train
-        metrics, mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, orig_metrics, orig_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
-    
+        metrics, mia_metrics = get_test_metrics(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, orig_metrics, orig_mia_metrics, ATTACK, 'un_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+
+        # if ATTACK == "mia1":
+        #             elif ATTACK == "mia2":
+        #     metrics, mia_metrics = get_test_metrics_for_mia2(dataset_orig, target_dataset, reference_dataset, "un_log", f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR)
         # For exp
         # explainer = Explainer()
         # explainer.tree_explain(dataset, dataset_orig_test, unprivileged_groups, 'orig')
@@ -75,7 +81,9 @@ class SyntheticMitigator(BaseMitigator):
                        base_rate_privileged, base_rate_unprivileged, 
                        model_type, transf_metrics, transf_mia_metrics,
                        f_label, uf_label, 
-                       THRESH_ARR, DISPLAY, OS_MODE, SCALER):
+                       ATTACK, THRESH_ARR, DISPLAY, OS_MODE, SCALER,
+                       target_dataset, reference_dataset):
+        
         # generating synthetic data
         dataset_transf_train = synthetic(dataset_orig_train, unprivileged_groups, base_rate_privileged, base_rate_unprivileged, f_label, uf_label, os_mode = OS_MODE)
         print('origin, transf: ', dataset_orig_train.features.shape[0], dataset_transf_train.features.shape[0])
@@ -91,37 +99,150 @@ class SyntheticMitigator(BaseMitigator):
         # fitting the model on the transformed dataset with synthetic generator
         dataset = dataset_transf_train
         # transf_metrics, transf_mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
-        
-        transf_metrics, transf_mia_metrics = get_test_metrics_for_syn(dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        transf_metrics, transf_mia_metrics = get_test_metrics_for_syn(target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, ATTACK, 'syn_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         # For exp
         #explainer = Explainer()
         #explainer.tree_explain(dataset_transf_train, dataset_orig_test, unprivileged_groups, 'synth')
 
         return metric_transf_train, transf_metrics, transf_mia_metrics
+    
+def transform_privacy_meter_dataset(pm_dataset, DIR, feature_names, label_name, protected_attribute_name):
+    print("=============================================================")
+    print("TRANSFROM PRIVACY METER DATASET")
+    transformed_data_dict = {}
+    for split_name, split_data in pm_dataset.data_dict.items():
+        x = split_data['x']
+        y = split_data['y']
+        g = split_data['g']
 
+        # Create a DataFrame with features, labels, and sensitive attribute
+        df = pd.DataFrame(x, columns=feature_names)
+        df[label_name] = y
+
+        # Extract sensitive attribute from x
+        if protected_attribute_name in feature_names:
+            sensitive_feature_index = feature_names.index(protected_attribute_name)
+            sensitive_features = x[:, sensitive_feature_index]
+            df[protected_attribute_name] = sensitive_features
+        else:
+            raise ValueError(f"Protected attribute '{protected_attribute_name}' not found in feature names.")
+        
+        print("DATAFRAME BEFORE DIR TRANSFORM", df)
+
+        # Create a BinaryLabelDataset
+        dataset = BinaryLabelDataset(
+            favorable_label=1.0,
+            unfavorable_label=0.0,
+            df=df,
+            label_names=[label_name],
+            protected_attribute_names=[protected_attribute_name],
+            privileged_protected_attributes=[[1]],
+            unprivileged_protected_attributes=[[0]]
+        )
+
+        # Apply DIR
+        dataset_dir = DIR.fit_transform(dataset)
+
+        # Extract transformed features
+        x_transformed = dataset_dir.features
+        y_transformed = dataset_dir.labels.ravel()
+        protected_attributes_transformed = dataset_dir.protected_attributes.ravel()
+
+        # Reconstruct 'g' from transformed labels and protected attributes
+        y_transformed_int = y_transformed.astype(int)
+        protected_attributes_transformed_int = protected_attributes_transformed.astype(int)
+        g_transformed = y_transformed_int + (protected_attributes_transformed_int + 1) * 2
+
+        # Update the split_data
+        transformed_data_dict[split_name] = {
+            'x': x_transformed,
+            'y': y_transformed_int,
+            'g': g_transformed
+        }
+
+    # Create a new privacy_meter Dataset
+    transformed_pm_dataset = Dataset(
+        data_dict=transformed_data_dict,
+        default_input='x',
+        default_output='y',
+        default_group='g'
+    )
+    
+    print("=====================================================================================")
+
+    return transformed_pm_dataset
 
 class DIRMitigator(BaseMitigator):
 
     mitigator_type = 'Disparity Impact Remover Mitigator'
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,  
+
+    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
                       sensitive_attribute, model_type, dir_metrics, dir_mia_metrics,
-                      f_label, uf_label, unprivileged_groups, privileged_groups, 
-                      THRESH_ARR, DISPLAY, SCALER):
+                      f_label, uf_label, unprivileged_groups, privileged_groups,
+                      ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
+
+        # Initialize the DisparateImpactRemover
         DIR = DisparateImpactRemover(sensitive_attribute=sensitive_attribute)
+
+        # Apply DIR to the training, validation, and test datasets
         dataset_dir_train = DIR.fit_transform(dataset_orig_train)
         dataset_dir_val = DIR.fit_transform(dataset_orig_val)
         dataset_dir_test = DIR.fit_transform(dataset_orig_test)
 
         dataset = dataset_dir_train
-        # For exp
-        #explainer = Explainer()
-        #explainer.explain(dataset, dataset_orig_test, 'dir')
+        
+        print("=====================================================")
+        print("RUN DIRMITIGATOR")
+        print(dataset_dir_train.features)
 
-        dir_metrics, dir_mia_metrics = get_test_metrics(dataset, dataset_dir_val, dataset_dir_test, model_type, dir_metrics, dir_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        # Apply DIR to target and reference datasets for MIA2 attack
+        if ATTACK == 'mia2':
+            # Extract feature names, label name, and protected attribute name from the original dataset
+            feature_names = dataset_orig_train.feature_names
+            label_name = dataset_orig_train.label_names[0]
+            protected_attribute_name = sensitive_attribute  # Or dataset_orig_train.protected_attribute_names[0]
+
+            # Transform target_dataset and reference_dataset
+            target_dataset_dir = transform_privacy_meter_dataset(
+                pm_dataset=target_dataset,
+                DIR=DIR,
+                feature_names=feature_names,
+                label_name=label_name,
+                protected_attribute_name=protected_attribute_name
+            )
+            reference_dataset_dir = transform_privacy_meter_dataset(
+                pm_dataset=reference_dataset,
+                DIR=DIR,
+                feature_names=feature_names,
+                label_name=label_name,
+                protected_attribute_name=protected_attribute_name
+            )
+
+        # Call get_test_metrics with transformed datasets
+        dir_metrics, dir_mia_metrics = get_test_metrics(
+            target_dataset=target_dataset_dir,
+            reference_dataset=reference_dataset_dir,
+            dataset_orig_train=dataset,
+            dataset_orig_val=dataset_dir_val,
+            dataset_orig_test=dataset_dir_test,
+            model_type=model_type,
+            test_metrics=dir_metrics,
+            mia_metrics=dir_mia_metrics,
+            ATTACK=ATTACK,
+            log_type="dir_log",
+            f_label=f_label,
+            uf_label=uf_label,
+            unprivileged_groups=unprivileged_groups,
+            privileged_groups=privileged_groups,
+            THRESH_ARR=THRESH_ARR,
+            DISPLAY=DISPLAY,
+            SCALER=SCALER
+        )
+        
+        print("=====================================================")
 
         return dir_metrics, dir_mia_metrics
-
 
 class OPMitigator(BaseMitigator):
 
@@ -139,7 +260,7 @@ class ReweighMitigator(BaseMitigator):
     mitigator_type = 'Reweigh Mitigator'
     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
                       f_label, uf_label, unprivileged_groups, privileged_groups, model_type, reweigh_metrics, reweigh_mia_metrics,
-                      THRESH_ARR, DISPLAY, SCALER):
+                      ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
 
         # transform the data with preprocessing reweighing and fit the model
         RW = Reweighing(unprivileged_groups=unprivileged_groups,
@@ -200,142 +321,27 @@ class ReweighMitigator(BaseMitigator):
         
         #explainer = Explainer()
         #explainer.explain(dataset_reweigh_train, dataset_orig_test, 'reweigh')
-        
-        reweigh_metrics, reweigh_mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, reweigh_metrics, reweigh_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+                
+        reweigh_metrics, reweigh_mia_metrics = get_test_metrics(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, reweigh_metrics, reweigh_mia_metrics, ATTACK, 'rew_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         
         return reweigh_metrics, reweigh_mia_metrics
 
 
 # Exponentiated Gradiant Reduction (In-processing)
-class EGRMitigator(BaseMitigator):
-    mitigator_type = 'EGR Mitigator'
- 
+class EGMitigator(BaseMitigator):
+    mitigator_type = 'EG Mitigator'
     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
-                      egr_metrics, egr_mia_metrics, model_type, 
+                      eg_metrics, eg_mia_metrics, model_type, 
                       f_label, uf_label, 
                       unprivileged_groups, privileged_groups, 
-                      THRESH_ARR, DISPLAY, SCALER):
+                      ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
         # set up dataset
-        if SCALER:
-            pr_orig_scaler = StandardScaler()
-            dataset = dataset_orig_train.copy(deepcopy=True)
-            dataset.features = pr_orig_scaler.fit_transform(dataset.features)
-
-            dataset_val_pred = dataset_orig_val.copy(deepcopy=True)
-            dataset_val_pred.features = pr_orig_scaler.transform(dataset_val_pred.features)
-
-            dataset_test_pred = dataset_orig_test.copy(deepcopy=True)
-            dataset_test_pred.features = pr_orig_scaler.transform(dataset_test_pred.features)
-
-        else:
-            dataset = dataset_orig_train.copy(deepcopy=True)
-            dataset_val_pred = dataset_orig_val.copy(deepcopy=True)
-            dataset_test_pred = dataset_orig_test.copy(deepcopy=True)
         
-        dataset.labels = dataset.labels.ravel() 
-            
-       # Convert AIF360 dataset to pandas DataFrame and Series
-        X_train = pd.DataFrame(dataset.features, columns=dataset.feature_names)
-        y_train = pd.Series(dataset.labels.ravel())
-
-        # X_val = pd.DataFrame(dataset_val_pred.features, columns=dataset_val_pred.feature_names)
-        # y_val = pd.Series(dataset_val_pred.labels.ravel())
-
-        # X_test = pd.DataFrame(dataset_test_pred.features, columns=dataset_test_pred.feature_names)
-        # y_test = pd.Series(dataset_test_pred.labels.ravel())
-
-        # Define the protected attribute(s)
-        protected_attribute = dataset.protected_attribute_names[0]
-
-        # Extract the protected attribute as a Series
-        A_train = pd.Series(dataset.protected_attributes[:, 0], name=protected_attribute)
-        
-        # Prepare the base estimator
-        test_model = TModel(model_type)
-        base_estimator = test_model.get_model()
-        
-        # Define the fairness constraint
-        constraints = EqualizedOdds()
-
-        # Create the ExponentiatedGradient mitigator from fairlearn
-        mitigator = ExponentiatedGradient(estimator=base_estimator, constraints=constraints)
-
-        # Fit the mitigator
-        print('Fitting ExponentiatedGradient ...')
-        mitigator = mitigator.fit(X_train, y_train, sensitive_features=A_train)
-        print("Done fitting")
-        
-        # print('fitting EGR ...')
-        # #np.random.seed(0) #need for reproducibility
-        # egr_mod = ExponentiatedGradientReduction(estimator=model,
-        #                                          prot_attr=dataset.protected_attribute_names,
-        #                                         #  T=2,
-        #                                         eta0=2.0,
-        #                                         eps=0.001,
-        #                                         constraints="EqualizedOdds",
-        #                                         drop_prot_attr=True)
-
-        # # After applying EGR
-        # egr_mod = egr_mod.fit(X_train, y_train)
-
-        #validate
-        thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
-
-        val_metrics = test(f_label, uf_label,
-                           unprivileged_groups, privileged_groups,
-                           dataset=dataset_val_pred,
-                           model=mitigator,
-                           thresh_arr=thresh_arr, metric_arrs=None)
-        
-        # egr_best_ind = np.argmax(val_metrics['bal_acc'])
-        egr_best_ind = -1
-
-        disp_imp = np.array(val_metrics['disp_imp'])
-        disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
-
-        if DISPLAY:
-            plot(thresh_arr, 'Classification Thresholds',
-                 val_metrics['bal_acc'], 'Balanced Accuracy',
-                 disp_imp_err, '1 - min(DI, 1/DI)')
-
-            plot(thresh_arr, 'Classification Thresholds',
-                 val_metrics['bal_acc'], 'Balanced Accuracy',
-                 val_metrics['avg_odds_diff'], 'avg. odds diff.')
-
-            plt.show()
-
-        egr_metrics = test(f_label, uf_label,
-                           unprivileged_groups, privileged_groups,
-                           dataset=dataset_test_pred,
-                           model=mitigator,
-                           thresh_arr=[thresh_arr[egr_best_ind]], metric_arrs=egr_metrics)
-
-        describe_metrics(egr_metrics, [thresh_arr[egr_best_ind]])
-        
-        train_test_egr = get_egr_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, mitigator, SCALER)
-        
-        # Runnning MIA attack based on subgroups
-        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mitigator)
-            
-        for i in results:
-            print(i)
-            
-        # metrics array to hold the results
-        if egr_mia_metrics is None:
-            egr_mia_metrics = defaultdict(list)
-
-        # Add the results to test_metrics object
-        # MIA results for overall dataset and subpopulations
-        for i in range(len(results)):
-            egr_mia_metrics[f"{results[i].get_name()}_mia_auc"].append(results[i].get_auc())
-            egr_mia_metrics[f"{results[i].get_name()}_mia_privacy_risk"].append(results[i].get_privacy_risk())
-            egr_mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
-            egr_mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
-            egr_mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
-        
-        #exp_grad_red_pred = exp_grad_red.predict(dataset_orig_test)
-        return train_test_egr, egr_metrics, egr_mia_metrics
+        dataset = dataset_orig_train
+        eg_metrics, eg_mia_metrics = get_test_metrics_for_eg(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, eg_metrics, eg_mia_metrics, ATTACK, 'eg_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+                
+        return eg_metrics, eg_mia_metrics
 
 # Prejudice Remover (Post-processing)
 class PRMitigator(BaseMitigator):

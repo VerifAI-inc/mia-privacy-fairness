@@ -38,7 +38,13 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 from sklearn.metrics import classification_report
 
+# mia2
+from privacy_meter.information_source import InformationSource
+from privacy_meter import audit_report
+from privacy_meter.audit_report import *
+from privacy_meter.audit import Audit, MetricEnum
 
+from sklearn.metrics import auc
 
 # Suppose we have evaluated the model on training and test examples to get the
 # per-example losses:
@@ -102,29 +108,27 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
 
     # Getting per example loss for train/test dataset
     if model_type == "dt":
-        if hasattr(mod_orig, '_pmf_predict'): # eg
-            preds_train = pd.DataFrame(mod_orig._pmf_predict(dataset_orig_train.features), columns=["0", "1"])
-            preds_train["label"] = dataset_orig_train.labels
-            # loss_train = compute_loss_dt(preds_train["1"])
-            loss_train = log_losses(preds_train["label"], preds_train["1"])
-            
-            # per example loss for test
-            preds_test = pd.DataFrame(mod_orig._pmf_predict(dataset_orig_test.features), columns=["0", "1"])
-            preds_test["label"] = dataset_orig_test.labels
-            # loss_test = compute_loss_dt(preds_test["1"])   
-            loss_test = log_losses(preds_test["label"], preds_test["1"])   
-        else:
-            # per example loss for train
+        if hasattr(mod_orig, "predict_proba"):  # Handles DT case
             preds_train = pd.DataFrame(mod_orig.predict_proba(dataset_orig_train.features), columns=["0", "1"])
-            preds_train["label"] = dataset_orig_train.labels
-            # loss_train = compute_loss_dt(preds_train["1"])
-            loss_train = log_losses(preds_train["label"], preds_train["1"])
+        elif hasattr(mod_orig, "_pmf_predict"):  # Handles EG case
+            preds_train = pd.DataFrame(mod_orig._pmf_predict(pd.DataFrame(dataset_orig_train.features)), columns=["0", "1"])
         
-            # per example loss for test
+        # Add true labels to the predictions
+        preds_train["label"] = dataset_orig_train.labels
+
+        # Calculate per-example loss for training data
+        loss_train = log_losses(preds_train["label"], preds_train["1"])
+        
+        if hasattr(mod_orig, "predict_proba"):  # Handles DT case
             preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
-            preds_test["label"] = dataset_orig_test.labels
-            # loss_test = compute_loss_dt(preds_test["1"])   
-            loss_test = log_losses(preds_test["label"], preds_test["1"])        
+        elif hasattr(mod_orig, "_pmf_predict"):  # Handles EG case
+            preds_test = pd.DataFrame(mod_orig._pmf_predict(pd.DataFrame(dataset_orig_test.features)), columns=["0", "1"])
+        
+        # Add true labels to the predictions
+        preds_test["label"] = dataset_orig_test.labels
+
+        # Calculate per-example loss for testing data
+        loss_test = log_losses(preds_test["label"], preds_test["1"])   
     else: #model_type == "lr" or model_type == "nn":
         # per example loss for train
         if model_type != "nn":
@@ -310,7 +314,7 @@ def run_threshold_estimator(
     tnr = sum(losses_test >= optimal_threshold)/ntest
     # overall_acc = (sum(losses_train < optimal_threshold) + sum(losses_test >= optimal_threshold)) / (ntrain + ntest)
     overall_acc =  0.5 * (in_guesses.mean() + out_guesses.mean())
-    privacy_risk = 0.5*(tpr_+tnr)  
+    privacy_risk = 0.5*(tpr_+tnr)
     
     return MIA_Attack_Result(name, fpr, tpr, thresholds, auc_score, privacy_risk, 
                              overall_acc, tpr_, tnr, test_train_ratio, [ntrain, ntest])
@@ -355,3 +359,87 @@ def run_mia_attacks_against_vulnarablle_subpopulations(loss_train, loss_test, pr
 
 ## EPFL implementation
 
+def run_mia2_attack(target_info_source, reference_info_source, log_type):
+    print("========================================================================")
+    print("RUN MIA2 ATTACK")
+    audit_obj = Audit(
+        metrics=MetricEnum.GROUPPOPULATION,
+        inference_game_type=InferenceGame.PRIVACY_LOSS_MODEL,
+        target_info_sources=target_info_source,
+        reference_info_sources=reference_info_source,
+        logs_directory_names=log_type + "_group"
+    )
+    
+    audit_obj.prepare()
+    audit_results = audit_obj.run()[0]
+    metric_results, group_metrics = audit_results[0], audit_results[1]
+    
+    pop_audit_obj = Audit(
+        metrics=MetricEnum.POPULATION,
+        inference_game_type=InferenceGame.PRIVACY_LOSS_MODEL,
+        target_info_sources=target_info_source,
+        reference_info_sources=reference_info_source,
+        logs_directory_names=log_type + "_pop"
+    )
+    
+    pop_audit_obj.prepare()
+    pop_audit_results = pop_audit_obj.run()[0]
+    pop_metric_results, pop_metrics = pop_audit_results[0], pop_audit_results[1]
+    
+    results = []
+    
+    dataset_size = [len(pop_metrics['member_signals']), len(pop_metrics['non_member_signals'])]
+    mia_res = MIA_Attack_Result(
+        name="entire_dataset",
+        fpr=pop_metrics['fprs'],
+        tpr=pop_metrics['tprs'],
+        thresholds=pop_metrics['thresholds'],
+        auc_score=auc(pop_metrics['fprs'], pop_metrics['tprs']),
+        privacy_risk=(pop_metrics['tpr'] + pop_metrics['tnr']) / 2,
+        accuracy=pop_metrics['accuracy'],
+        tpr_ind=pop_metrics['tpr'],
+        tnr_ind=pop_metrics['tnr'],
+        test_train_ratio=len(pop_metrics['non_member_signals']) / len(pop_metrics['member_signals']),
+        dataset_size=dataset_size,
+    )
+    
+    results.append(mia_res)
+    
+    for _, group in enumerate(group_metrics.keys()):
+        if group != "overall_thresh_arr":
+            metrics = group_metrics[group]
+            
+            # Extract privacy risk and AUC for unfair model
+            privacy_risk = (metrics['tpr'] + metrics['tnr']) / 2
+            auc_score = auc(metrics['fprs'], metrics['tprs'])
+            
+            if group == 2.0:
+                protected_attr_val, unique_label = 0.0, 0.0
+            elif group == 3.0:
+                protected_attr_val, unique_label = 0.0, 1.0
+            elif group == 4.0:
+                protected_attr_val, unique_label = 1.0, 0.0
+            else:
+                protected_attr_val, unique_label = 1.0, 1.0
+                
+            dataset_size = [len(metrics['member_signals']), len(metrics['non_member_signals'])]
+            
+            mia_result = MIA_Attack_Result(
+                name="subpopulation_" + str(protected_attr_val) + "_label_"+str(unique_label),
+                fpr=metrics['fprs'],
+                tpr=metrics['tprs'],
+                thresholds=metrics['thresholds'],
+                auc_score=auc_score,
+                privacy_risk=privacy_risk,
+                accuracy=metrics['accuracy'],
+                tpr_ind=metrics['tpr'],
+                tnr_ind=metrics['tnr'],
+                test_train_ratio=len(metrics['non_member_signals']) / len(metrics['member_signals']),
+                dataset_size=dataset_size,
+            )
+            
+            results.append(mia_result)
+    
+    print("========================================================================")
+    
+    return metric_results, pop_metric_results, group_metrics, pop_metrics, results

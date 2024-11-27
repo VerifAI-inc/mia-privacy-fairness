@@ -44,7 +44,7 @@ class DatasetBuilder:
             self.privileged_groups = [{'age': 1}]
             self.unprivileged_groups = [{'age': 0}]
             
-            df = pd.read_csv("./data/bank_preprocessed.csv", index_col=0)
+            df = pd.read_csv("./data/bank_reduced_dup.csv", index_col=0)
 
             # Create a BinaryLabelDataset using the binary labels ('y') and relevant attributes
             dataset = BinaryLabelDataset(
@@ -412,5 +412,3 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
 
     # return favor and unfavored oversampling results
     return dataset_transf_train, dataset_extra_train
-
-

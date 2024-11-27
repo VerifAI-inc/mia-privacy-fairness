@@ -23,6 +23,12 @@ from torch.utils.data.dataset import Dataset
 
 from art.estimators.classification.pytorch import PyTorchClassifier
 
+from sklearn.tree import DecisionTreeClassifier
+
+def log(y, pre):
+    e = 0.0000001
+    pre = np.clip(pre, e, 1 - e)
+    return - y * np.log(pre) - (1 - y) * np.log(1 - pre)
 
 class BaseModel(object):
 
@@ -90,14 +96,19 @@ class DTModel(BaseModel):
     def __init__(self, depth = 10):
         self.depth = depth
 
-    def train (self, dataset_train, SCALER):
+    def train (self, dataset_train, SCALER, ATTACK):
         print ('[INFO]: training decision tree')
-        if SCALER:
-            model = make_pipeline(StandardScaler(), tree.DecisionTreeClassifier(max_depth=self.depth))
-        else:
-            model = make_pipeline(tree.DecisionTreeClassifier(max_depth=self.depth))
-        fit_params = {'decisiontreeclassifier__sample_weight': dataset_train.instance_weights}
-        model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
+        if ATTACK == "mia1":
+            if SCALER:
+                model = make_pipeline(StandardScaler(), tree.DecisionTreeClassifier(max_depth=self.depth))
+            else:
+                model = make_pipeline(tree.DecisionTreeClassifier(max_depth=self.depth))
+            
+            fit_params = {'decisiontreeclassifier__sample_weight': dataset_train.instance_weights}
+            model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
+        elif ATTACK == "mia2":
+            model = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
+            model.fit(dataset_train.features, dataset_train.labels.ravel())
 
         return model
 
@@ -266,7 +277,7 @@ class TModel():
     def __init__(self, model_type):
         self.model_type = model_type
 
-    def set_model(self, dataset, SCALER):
+    def set_model(self, dataset, SCALER, ATTACK):
         if self.model_type == 'lr':
             model = LRModel() 
         elif self.model_type == 'rf':
@@ -279,7 +290,7 @@ class TModel():
             model = NBModel() 
         elif self.model_type == 'dt':
             model = DTModel() 
-        trained_model = model.train(dataset, SCALER)
+        trained_model = model.train(dataset, SCALER, ATTACK)
 
         return trained_model
 

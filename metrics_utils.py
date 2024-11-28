@@ -103,16 +103,16 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         # print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
 
         # print other statistics for debugging
-        if len(thresh_arr) == 1:
-            print("True positive rate is: ", metric.true_positive_rate())
-            print("True negative rate is: ", metric.true_negative_rate())
-            print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
-            print("Test Accuracy is: ", metric.accuracy())
-            print("Positive rate (Unprivileged):", metric.base_rate(privileged=False))
-            print("Positive rate (Privileged):", metric.base_rate(privileged=True))
+        # if len(thresh_arr) == 1:
+        #     print("True positive rate is: ", metric.true_positive_rate())
+        #     print("True negative rate is: ", metric.true_negative_rate())
+        #     print("Balanced accuracy is: ", (metric.true_positive_rate() + metric.true_negative_rate()) / 2)
+        #     print("Test Accuracy is: ", metric.accuracy())
+        #     print("Positive rate (Unprivileged):", metric.base_rate(privileged=False))
+        #     print("Positive rate (Privileged):", metric.base_rate(privileged=True))
 
-        print("Number of unprivileged instances:", metric.num_instances(privileged=False))
-        print("Number of privileged instances:", metric.num_instances(privileged=True))
+        # print("Number of unprivileged instances:", metric.num_instances(privileged=False))
+        # print("Number of privileged instances:", metric.num_instances(privileged=True))
         
         # Identify the index of the sensitive feature
         protected_attribute_name = list(privileged_groups[0].keys())[0]
@@ -127,8 +127,8 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         priv_positive_predictions = np.sum(y_val_pred[priv_indices] == f_label)
 
         # Print the results
-        print(f"Unprivileged Positive Predictions (Favorable): {unpriv_positive_predictions}")
-        print(f"Privileged Positive Predictions (Favorable): {priv_positive_predictions}")
+        # print(f"Unprivileged Positive Predictions (Favorable): {unpriv_positive_predictions}")
+        # print(f"Privileged Positive Predictions (Favorable): {priv_positive_predictions}")
         
         metric_arrs['avg_odds_diff'].append(metric.average_odds_difference())
         metric_arrs['disp_imp'].append(1 - min((metric.disparate_impact()), 1/metric.disparate_impact()))
@@ -190,21 +190,21 @@ def compute_metrics(dataset_true, dataset_pred,
 def describe_metrics(metrics, thresh_arr, TEST=True):
     if not TEST:
         best_ind = np.argmax(metrics['bal_acc'])
-        print("Threshold corresponding to Best balanced accuracy: {:6.4f}".format(thresh_arr[best_ind]))
+        # print("Threshold corresponding to Best balanced accuracy: {:6.4f}".format(thresh_arr[best_ind]))
     else:
         best_ind = -1
-    print("Best balanced accuracy: {:6.4f}".format(metrics['bal_acc'][best_ind]))
+    # print("Best balanced accuracy: {:6.4f}".format(metrics['bal_acc'][best_ind]))
     #disp_imp_at_best_ind = np.abs(1 - np.array(metrics['disp_imp']))[best_ind]
     disp_imp_at_best_ind = 1 - min(metrics['disp_imp'][best_ind], 1/metrics['disp_imp'][best_ind])
-    print("Corresponding 1-min(DI, 1/DI) value: {:6.4f}".format(disp_imp_at_best_ind))
-    print("Corresponding average odds difference value: {:6.4f}".format(metrics['avg_odds_diff'][best_ind]))
-    print("Corresponding statistical parity difference value: {:6.4f}".format(metrics['stat_par_diff'][best_ind]))
-    print("Corresponding equal opportunity difference value: {:6.4f}".format(metrics['eq_opp_diff'][best_ind]))
-    print("Corresponding Theil index value: {:6.4f}".format(metrics['theil_ind'][best_ind]))
-    print("Corresponding false positive_rate for privileged: {:6.4f}".format(metrics['priv_fpr'][best_ind]))
-    print("Corresponding false negative_rate for privileged: {:6.4f}".format(metrics['priv_fnr'][best_ind]))
-    print("Corresponding false positive_rate for unpribileged: {:6.4f}".format(metrics['unpriv_fpr'][best_ind]))
-    print("Corresponding false negative_rate for unprivileged: {:6.4f}".format(metrics['unpriv_fnr'][best_ind]))
+    # print("Corresponding 1-min(DI, 1/DI) value: {:6.4f}".format(disp_imp_at_best_ind))
+    # print("Corresponding average odds difference value: {:6.4f}".format(metrics['avg_odds_diff'][best_ind]))
+    # print("Corresponding statistical parity difference value: {:6.4f}".format(metrics['stat_par_diff'][best_ind]))
+    # print("Corresponding equal opportunity difference value: {:6.4f}".format(metrics['eq_opp_diff'][best_ind]))
+    # print("Corresponding Theil index value: {:6.4f}".format(metrics['theil_ind'][best_ind]))
+    # print("Corresponding false positive_rate for privileged: {:6.4f}".format(metrics['priv_fpr'][best_ind]))
+    # print("Corresponding false negative_rate for privileged: {:6.4f}".format(metrics['priv_fnr'][best_ind]))
+    # print("Corresponding false positive_rate for unpribileged: {:6.4f}".format(metrics['unpriv_fpr'][best_ind]))
+    # print("Corresponding false negative_rate for unprivileged: {:6.4f}".format(metrics['unpriv_fnr'][best_ind]))
     
 def calculate_accuracy(model, dataset):
     if "ModelToAttack" in str(type(model)):
@@ -261,7 +261,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     mitigator = ExponentiatedGradient(classifier, constraint)
     mitigator.fit(X, y_true, sensitive_features=sensitive_features)
     
-    if ATTACK == "MIA1":
+    if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
         # Runnning MIA attack based on subgroups
         results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mitigator)
@@ -275,7 +275,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     print("Train accuracy: ", calculate_accuracy(mitigator, dataset))
         
     # find the best threshold for balanced accuracy
-    print('Validating Original ...')
+    print('Validating EG ...')
     
     if SCALER:
         scale_orig = StandardScaler()
@@ -316,7 +316,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
 
         describe_metrics(val_metrics, thresh_arr)
 
-        print('Testing Original ...')
+        print('Testing EG ...')
         test_metrics = test(f_label, uf_label,
                             unprivileged_groups, privileged_groups,
                             dataset=dataset_orig_test_pred,
@@ -347,7 +347,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
 
     return test_metrics, mia_metrics
 
-def get_test_metrics_for_syn(target_dataset, reference_dataset, syn_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, ATTACK, log_type, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER):
+def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, ATTACK, log_type, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER):
     """
     Return the metrics for sysntetic mitigator, the difference being the fact that it additionally recieves orig train for running MIA
     """
@@ -356,7 +356,7 @@ def get_test_metrics_for_syn(target_dataset, reference_dataset, syn_dataset, dat
     test_model = TModel(model_type)
     mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
     
-    if ATTACK == "MIA1":
+    if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
         # Runnning MIA attack based on subgroups
         results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mod_orig)
@@ -370,7 +370,7 @@ def get_test_metrics_for_syn(target_dataset, reference_dataset, syn_dataset, dat
     print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
     
     # find the best threshold for balanced accuracy
-    print('Validating Original ...')
+    print('Validating Syn OR Rew ...')
     if SCALER:
         scale_orig = StandardScaler()
         dataset_orig_val_pred = dataset_orig_val.copy(deepcopy=True)
@@ -408,7 +408,7 @@ def get_test_metrics_for_syn(target_dataset, reference_dataset, syn_dataset, dat
 
     describe_metrics(val_metrics, thresh_arr)
 
-    print('Testing Original ...')
+    print('Testing Syn OR Rew ...')
     test_metrics = test(f_label, uf_label,
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_test_pred,
@@ -447,7 +447,7 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
     test_model = TModel(model_type)
     mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
     
-    if ATTACK == "MIA1":
+    if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
         # Runnning MIA attack based on subgroups
         results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mod_orig)

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn, get_test_metrics_for_eg, get_egr_model_metrics
+from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn_rew, get_test_metrics_for_eg, get_egr_model_metrics
 
 #setup test models
 from models import TModel, MLPClassifierWrapper 
@@ -99,7 +99,7 @@ class SyntheticMitigator(BaseMitigator):
         # fitting the model on the transformed dataset with synthetic generator
         dataset = dataset_transf_train
         # transf_metrics, transf_mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
-        transf_metrics, transf_mia_metrics = get_test_metrics_for_syn(target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, ATTACK, 'syn_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        transf_metrics, transf_mia_metrics = get_test_metrics_for_syn_rew(target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, ATTACK, 'syn_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         # For exp
         #explainer = Explainer()
@@ -147,18 +147,12 @@ def transform_privacy_meter_dataset(pm_dataset, DIR, feature_names, label_name, 
         # Extract transformed features
         x_transformed = dataset_dir.features
         y_transformed = dataset_dir.labels.ravel()
-        protected_attributes_transformed = dataset_dir.protected_attributes.ravel()
-
-        # Reconstruct 'g' from transformed labels and protected attributes
-        y_transformed_int = y_transformed.astype(int)
-        protected_attributes_transformed_int = protected_attributes_transformed.astype(int)
-        g_transformed = y_transformed_int + (protected_attributes_transformed_int + 1) * 2
 
         # Update the split_data
         transformed_data_dict[split_name] = {
             'x': x_transformed,
-            'y': y_transformed_int,
-            'g': g_transformed
+            'y': y_transformed,
+            'g': g
         }
 
     # Create a new privacy_meter Dataset
@@ -194,29 +188,30 @@ class DIRMitigator(BaseMitigator):
         
         print("=====================================================")
         print("RUN DIRMITIGATOR")
-        print(dataset_dir_train.features)
+        
+        target_dataset_dir = None
+        reference_dataset_dir = None
 
         # Apply DIR to target and reference datasets for MIA2 attack
         if ATTACK == 'mia2':
             # Extract feature names, label name, and protected attribute name from the original dataset
             feature_names = dataset_orig_train.feature_names
             label_name = dataset_orig_train.label_names[0]
-            protected_attribute_name = sensitive_attribute  # Or dataset_orig_train.protected_attribute_names[0]
-
+            
             # Transform target_dataset and reference_dataset
             target_dataset_dir = transform_privacy_meter_dataset(
                 pm_dataset=target_dataset,
                 DIR=DIR,
                 feature_names=feature_names,
                 label_name=label_name,
-                protected_attribute_name=protected_attribute_name
+                protected_attribute_name=sensitive_attribute
             )
             reference_dataset_dir = transform_privacy_meter_dataset(
                 pm_dataset=reference_dataset,
                 DIR=DIR,
                 feature_names=feature_names,
                 label_name=label_name,
-                protected_attribute_name=protected_attribute_name
+                protected_attribute_name=sensitive_attribute
             )
 
         # Call get_test_metrics with transformed datasets
@@ -322,7 +317,7 @@ class ReweighMitigator(BaseMitigator):
         #explainer = Explainer()
         #explainer.explain(dataset_reweigh_train, dataset_orig_test, 'reweigh')
                 
-        reweigh_metrics, reweigh_mia_metrics = get_test_metrics(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, reweigh_metrics, reweigh_mia_metrics, ATTACK, 'rew_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        reweigh_metrics, reweigh_mia_metrics = get_test_metrics_for_syn_rew(target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, reweigh_metrics, reweigh_mia_metrics, ATTACK, 'rew_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         
         return reweigh_metrics, reweigh_mia_metrics

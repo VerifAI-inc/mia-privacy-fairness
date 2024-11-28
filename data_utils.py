@@ -44,7 +44,7 @@ class DatasetBuilder:
             self.privileged_groups = [{'age': 1}]
             self.unprivileged_groups = [{'age': 0}]
             
-            df = pd.read_csv("./data/bank_reduced_dup.csv", index_col=0)
+            df = pd.read_csv("./data/bank_dup.csv", index_col=0)
 
             # Create a BinaryLabelDataset using the binary labels ('y') and relevant attributes
             dataset = BinaryLabelDataset(

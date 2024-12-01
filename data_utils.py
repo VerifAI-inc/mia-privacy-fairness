@@ -190,17 +190,44 @@ class DatasetBuilder:
                 credit_map = {1: 1.0, 2: 0.0}
                 df['credit'] = df['credit'].replace(credit_map)
                 
-                print(df['credit'])
+                df.drop(columns=['sex'], inplace=True)
                 
                 return df
             
-            dataset = GermanDataset(
-                protected_attribute_names=['age'],           # this dataset also contains protected
-                                                                # attribute for "sex" which we do not
-                                                                # consider in this evaluation
-                privileged_classes=[lambda x: x >= 25],      # age >=25 is considered privileged
-                features_to_drop=['personal_status','sex'], # ignore sex-related attributes
-                custom_preprocessing=custom_preprocessing
+            dataset_g = GermanDataset()
+            df, _ = dataset_g.convert_to_dataframe()
+            df = custom_preprocessing(df)
+            
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  
+                unfavorable_label=0, 
+                df=df,
+                label_names=dataset_g.label_names,  # The newly created binary label
+                protected_attribute_names=['age']
+            )
+        
+        elif self.DATASET == 'german_sex':
+            self.privileged_groups = [{'sex': 1}]
+            self.unprivileged_groups = [{'sex': 0}]
+            
+            def custom_preprocessing(df):
+                credit_map = {1: 1.0, 2: 0.0}
+                df['credit'] = df['credit'].replace(credit_map)
+                
+                df.drop(columns=['age'], inplace=True)
+                
+                return df
+            
+            dataset_g = GermanDataset()
+            df, _ = dataset_g.convert_to_dataframe()
+            df = custom_preprocessing(df)
+            
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  
+                unfavorable_label=0, 
+                df=df,
+                label_names=dataset_g.label_names,  # The newly created binary label
+                protected_attribute_names=['sex']
             )
         
         elif self.DATASET == 'german_foreign':
@@ -221,13 +248,6 @@ class DatasetBuilder:
                 credit_map = {1: 1.0, 2: 0.0}
                 df['credit'] = df['credit'].replace(credit_map)
 
-                return df
-            
-            def custom_preprocessing(df):
-                
-                
-                print(df['credit'])
-                
                 return df
 
             default_mappings = {

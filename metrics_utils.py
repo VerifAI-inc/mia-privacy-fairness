@@ -125,10 +125,19 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         # Privileged group positive predictions
         priv_indices = np.where(dataset.features[:, sensitive_feature_index] == 1)  # Assuming 1 for privileged
         priv_positive_predictions = np.sum(y_val_pred[priv_indices] == f_label)
+        
+        # Unprivileged group negative predictions
+        unpriv_negative_predictions = np.sum(y_val_pred[unpriv_indices] == uf_label)
+
+        # Privileged group negative predictions
+        priv_negative_predictions = np.sum(y_val_pred[priv_indices] == uf_label)
 
         # Print the results
-        # print(f"Unprivileged Positive Predictions (Favorable): {unpriv_positive_predictions}")
-        # print(f"Privileged Positive Predictions (Favorable): {priv_positive_predictions}")
+        print(f"Unprivileged Positive Predictions (Favorable): {unpriv_positive_predictions}")
+        print(f"Privileged Positive Predictions (Favorable): {priv_positive_predictions}")
+        
+        print(f"Unprivileged Negative Predictions: {unpriv_negative_predictions}")
+        print(f"Privileged Negative Predictions: {priv_negative_predictions}") 
         
         metric_arrs['avg_odds_diff'].append(metric.average_odds_difference())
         metric_arrs['disp_imp'].append(1 - min((metric.disparate_impact()), 1/metric.disparate_impact()))

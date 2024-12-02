@@ -46,6 +46,8 @@ from privacy_meter.audit import Audit, MetricEnum
 
 from sklearn.metrics import auc
 
+import matplotlib.pyplot as plt
+
 # Suppose we have evaluated the model on training and test examples to get the
 # per-example losses:
 # loss_train  shape: (n_train, )
@@ -80,8 +82,80 @@ def log_losses(y_true, y_pred, eps=1e-15):
     one_minus_y_pred = np.clip(1 - y_pred, eps, 1 - eps)
     return -(y_true * np.log(y_pred) + (1 - y_true) * np.log(one_minus_y_pred))
 
+def analyze_and_visualize_predictions_and_losses(preds_train, preds_test, loss_train, loss_test):
+    """
+    Analyze and visualize predictions and losses for training and testing datasets.
+    
+    Args:
+        preds_train (pd.DataFrame): DataFrame containing training predictions (columns: ["0", "1", "label"]).
+        preds_test (pd.DataFrame): DataFrame containing testing predictions (columns: ["0", "1", "label"]).
+        loss_train (np.ndarray): Array of loss values for training data.
+        loss_test (np.ndarray): Array of loss values for testing data.
+    """
+    # Statistical summaries
+    print("\n=== Statistical Summary of Predictions and Losses ===")
+    
+    # Predictions summary
+    print("\nTrain Predictions (Positive Class Probability):")
+    print(preds_train["1"].describe())
+    print("\nTest Predictions (Positive Class Probability):")
+    print(preds_test["1"].describe())
+
+    # Losses summary
+    print("\nTraining Loss Summary:")
+    print(pd.DataFrame(loss_train, columns=['Loss']).describe())
+    print("\nTesting Loss Summary:")
+    print(pd.DataFrame(loss_test, columns=['Loss']).describe())
+
+    # Visualization
+
+    # Convert losses to DataFrame for visualization
+    loss_train_df = pd.DataFrame({'loss': loss_train, 'dataset': 'train'})
+    loss_test_df = pd.DataFrame({'loss': loss_test, 'dataset': 'test'})
+    loss_combined = pd.concat([loss_train_df, loss_test_df], ignore_index=True)
+
+    # Plot histogram of predicted probabilities (train)
+    plt.figure(figsize=(12, 5))
+    plt.hist(preds_train["1"], bins=30, alpha=0.7, label="Train Predictions (Positive Class)", color='blue')
+    plt.hist(preds_test["1"], bins=30, alpha=0.7, label="Test Predictions (Positive Class)", color='orange')
+    plt.title("Histogram of Predicted Probabilities for Positive Class")
+    plt.xlabel("Predicted Probability")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.show()
+
+    # Plot scatter plot of true labels vs. predicted probabilities
+    plt.figure(figsize=(12, 5))
+    plt.scatter(preds_train["label"], preds_train["1"], alpha=0.6, label="Train Data", color='blue')
+    plt.scatter(preds_test["label"], preds_test["1"], alpha=0.6, label="Test Data", color='orange')
+    plt.title("True Labels vs. Predicted Probabilities")
+    plt.xlabel("True Label")
+    plt.ylabel("Predicted Probability")
+    plt.legend()
+    plt.show()
+
+    # Plot histogram of losses
+    plt.figure(figsize=(12, 5))
+    for dataset, group in loss_combined.groupby("dataset"):
+        plt.hist(group["loss"], bins=30, alpha=0.7, label=f"{dataset.capitalize()} Loss")
+    plt.title("Histogram of Loss Values")
+    plt.xlabel("Loss")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.show()
+
+    # Compare loss distributions with box plots
+    plt.figure(figsize=(8, 6))
+    loss_combined.boxplot(column='loss', by='dataset', grid=False)
+    plt.title("Box Plot of Loss Values by Dataset")
+    plt.suptitle("")  # Remove automatic title
+    plt.xlabel("Dataset")
+    plt.ylabel("Loss")
+    plt.show()
 
 def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mod_orig ):
+    print("=================================================================")
+    print("RUN MIA ATTACK")
     
     # getting the column denoting priv/unpriv groups
     priv_group_column = list(privileged_groups[0].keys())[0]
@@ -129,6 +203,8 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
 
         # Calculate per-example loss for testing data
         loss_test = log_losses(preds_test["label"], preds_test["1"])   
+        
+        analyze_and_visualize_predictions_and_losses(preds_train, preds_test, loss_train, loss_test)
     else: #model_type == "lr" or model_type == "nn":
         # per example loss for train
         if model_type != "nn":

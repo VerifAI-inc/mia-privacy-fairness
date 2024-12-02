@@ -357,7 +357,10 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     sample_features = np.concatenate((f_dataset.features, inflated_uf_features))
     inflated_uf_labels = np.repeat(uf_dataset.labels, inflate_rate, axis=0)
     sample_labels = np.concatenate((f_dataset.labels, inflated_uf_labels))
-    
+    print(f"Size of favorable dataset: {f_dataset.features.shape[0]}")
+    print(f"Size of inflated unfavorable dataset: {inflated_uf_features.shape[0]}")
+    print(f"Sample features size: ", sample_features.shape[0])
+    print(f"Sample labels size: ", sample_labels.shape[0])
 
     # oversampling favorable samples
     # X: inflated dataset with synthetic samples of f_label attached to the end

@@ -82,7 +82,7 @@ def log_losses(y_true, y_pred, eps=1e-15):
     one_minus_y_pred = np.clip(1 - y_pred, eps, 1 - eps)
     return -(y_true * np.log(y_pred) + (1 - y_true) * np.log(one_minus_y_pred))
 
-def analyze_and_visualize_predictions_and_losses(preds_train, preds_test, loss_train, loss_test):
+def analyze_and_visualize_losses(loss_train, loss_test):
     """
     Analyze and visualize predictions and losses for training and testing datasets.
     
@@ -95,12 +95,6 @@ def analyze_and_visualize_predictions_and_losses(preds_train, preds_test, loss_t
     # Statistical summaries
     print("\n=== Statistical Summary of Predictions and Losses ===")
     
-    # Predictions summary
-    print("\nTrain Predictions (Positive Class Probability):")
-    print(preds_train["1"].describe())
-    print("\nTest Predictions (Positive Class Probability):")
-    print(preds_test["1"].describe())
-
     # Losses summary
     print("\nTraining Loss Summary:")
     print(pd.DataFrame(loss_train, columns=['Loss']).describe())
@@ -113,27 +107,7 @@ def analyze_and_visualize_predictions_and_losses(preds_train, preds_test, loss_t
     loss_train_df = pd.DataFrame({'loss': loss_train, 'dataset': 'train'})
     loss_test_df = pd.DataFrame({'loss': loss_test, 'dataset': 'test'})
     loss_combined = pd.concat([loss_train_df, loss_test_df], ignore_index=True)
-
-    # Plot histogram of predicted probabilities (train)
-    plt.figure(figsize=(12, 5))
-    plt.hist(preds_train["1"], bins=30, alpha=0.7, label="Train Predictions (Positive Class)", color='blue')
-    plt.hist(preds_test["1"], bins=30, alpha=0.7, label="Test Predictions (Positive Class)", color='orange')
-    plt.title("Histogram of Predicted Probabilities for Positive Class")
-    plt.xlabel("Predicted Probability")
-    plt.ylabel("Frequency")
-    plt.legend()
-    plt.show()
-
-    # Plot scatter plot of true labels vs. predicted probabilities
-    plt.figure(figsize=(12, 5))
-    plt.scatter(preds_train["label"], preds_train["1"], alpha=0.6, label="Train Data", color='blue')
-    plt.scatter(preds_test["label"], preds_test["1"], alpha=0.6, label="Test Data", color='orange')
-    plt.title("True Labels vs. Predicted Probabilities")
-    plt.xlabel("True Label")
-    plt.ylabel("Predicted Probability")
-    plt.legend()
-    plt.show()
-
+    
     # Plot histogram of losses
     plt.figure(figsize=(12, 5))
     for dataset, group in loss_combined.groupby("dataset"):
@@ -182,29 +156,24 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
 
     # Getting per example loss for train/test dataset
     if model_type == "dt":
-        if hasattr(mod_orig, "predict_proba"):  # Handles DT case
-            preds_train = pd.DataFrame(mod_orig.predict_proba(dataset_orig_train.features), columns=["0", "1"])
-        elif hasattr(mod_orig, "_pmf_predict"):  # Handles EG case
-            preds_train = pd.DataFrame(mod_orig._pmf_predict(pd.DataFrame(dataset_orig_train.features)), columns=["0", "1"])
         
+        preds_train = pd.DataFrame(mod_orig.predict_proba(dataset_orig_train.features), columns=["0", "1"])
         # Add true labels to the predictions
         preds_train["label"] = dataset_orig_train.labels
-
         # Calculate per-example loss for training data
         loss_train = log_losses(preds_train["label"], preds_train["1"])
-        
-        if hasattr(mod_orig, "predict_proba"):  # Handles DT case
-            preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
-        elif hasattr(mod_orig, "_pmf_predict"):  # Handles EG case
-            preds_test = pd.DataFrame(mod_orig._pmf_predict(pd.DataFrame(dataset_orig_test.features)), columns=["0", "1"])
-        
+        preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
         # Add true labels to the predictions
         preds_test["label"] = dataset_orig_test.labels
-
         # Calculate per-example loss for testing data
-        loss_test = log_losses(preds_test["label"], preds_test["1"])   
+        loss_test = log_losses(preds_test["label"], preds_test["1"])  
         
-        analyze_and_visualize_predictions_and_losses(preds_train, preds_test, loss_train, loss_test)
+        analyze_and_visualize_losses(loss_train, loss_test)
+    elif model_type == "dt_eg":
+        loss_train = mod_orig.get_loss(df_train.drop(columns=['labels']), df_train['labels'])
+        loss_test = mod_orig.get_loss(df_test.drop(columns=['labels']), df_test['labels'])
+        
+        analyze_and_visualize_losses(loss_train, loss_test)
     else: #model_type == "lr" or model_type == "nn":
         # per example loss for train
         if model_type != "nn":

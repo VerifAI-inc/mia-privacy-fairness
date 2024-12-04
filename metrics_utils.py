@@ -268,14 +268,15 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     constraint = EqualizedOdds(difference_bound=0.001)
     classifier = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
     mitigator = ExponentiatedGradient(classifier, constraint)
-    mitigator.fit(X, y_true, sensitive_features=sensitive_features)
+    mitigator.fit(X, y_true, sensitive_features=sensitive_features)        
+    
+    target_model = Fairlearn_Model(model_obj=mitigator, loss_fn=log)
     
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
         # Runnning MIA attack based on subgroups
-        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mitigator)
+        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, target_model)
     elif ATTACK == "mia2":
-        target_model = Fairlearn_Model(model_obj=mitigator, loss_fn=log)
         target_info_source, reference_info_source = get_info_sources(target_dataset, reference_dataset, target_model)
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']

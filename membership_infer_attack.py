@@ -156,24 +156,31 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
 
     # Getting per example loss for train/test dataset
     if model_type == "dt":
+        X_train = pd.DataFrame(
+            dataset_orig_train.features, columns=dataset_orig_train.feature_names
+        )
         
-        preds_train = pd.DataFrame(mod_orig.predict_proba(dataset_orig_train.features), columns=["0", "1"])
+        X_test = pd.DataFrame(
+            dataset_orig_test.features, columns=dataset_orig_test.feature_names
+        )
+        
+        preds_train = pd.DataFrame(mod_orig.predict_proba(X_train), columns=["0", "1"])
         # Add true labels to the predictions
         preds_train["label"] = dataset_orig_train.labels
         # Calculate per-example loss for training data
         loss_train = log_losses(preds_train["label"], preds_train["1"])
-        preds_test = pd.DataFrame(mod_orig.predict_proba(dataset_orig_test.features), columns=["0", "1"])
+        preds_test = pd.DataFrame(mod_orig.predict_proba(X_test), columns=["0", "1"])
         # Add true labels to the predictions
         preds_test["label"] = dataset_orig_test.labels
         # Calculate per-example loss for testing data
         loss_test = log_losses(preds_test["label"], preds_test["1"])  
         
-        analyze_and_visualize_losses(loss_train, loss_test)
-    elif model_type == "dt_eg":
-        loss_train = mod_orig.get_loss(df_train.drop(columns=['labels']), df_train['labels'])
-        loss_test = mod_orig.get_loss(df_test.drop(columns=['labels']), df_test['labels'])
+        # analyze_and_visualize_losses(loss_train, loss_test)
+    # elif model_type == "dt_eg":
+        # loss_train = mod_orig.get_loss(df_train.drop(columns=['labels']), df_train['labels'])
+        # loss_test = mod_orig.get_loss(df_test.drop(columns=['labels']), df_test['labels'])
         
-        analyze_and_visualize_losses(loss_train, loss_test)
+        # analyze_and_visualize_losses(loss_train, loss_test)
     else: #model_type == "lr" or model_type == "nn":
         # per example loss for train
         if model_type != "nn":

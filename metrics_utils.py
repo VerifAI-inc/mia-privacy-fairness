@@ -23,6 +23,7 @@ from oversample import group_indices
 import pandas as pd
 
 from fairlearn.reductions import EqualizedOdds, ExponentiatedGradient
+from aif360.sklearn.inprocessing import ExponentiatedGradientReduction
 
 # mia2
 from privacy_meter.model import Fairlearn_Model, Sklearn_Model
@@ -40,7 +41,7 @@ def log(y, pre):
     pre = np.clip(pre, e, 1 - e)
     return - y * np.log(pre) - (1 - y) * np.log(1 - pre)
 
-def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, model, thresh_arr, metric_arrs):
+def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, model, thresh_arr, metric_arrs, ATTACK):
     print("=======================================================================")
     print("TEST")
     try:
@@ -67,9 +68,12 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
             pos_ind = np.where(model.classes_ == dataset.favorable_label)[0][0] # just returns the favorable value
             neg_ind = np.where(model.classes_ == dataset.unfavorable_label)[0][0] # just returns the unfavorable value
     except AttributeError:
-        # Handle ExponentiatedGradient or in-processing algorithms
-        y_val_pred_prob = model._pmf_predict(pd.DataFrame(dataset.features, columns=dataset.feature_names))
-        
+        if (ATTACK == "mia2"):
+            # Handle ExponentiatedGradient or in-processing algorithms
+            y_val_pred_prob = model._pmf_predict(pd.DataFrame(dataset.features, columns=dataset.feature_names))
+        else:
+            y_val_pred_prob = model.predict_proba(pd.DataFrame(dataset.features, columns=dataset.feature_names))
+            
         unique_labels = [dataset.unfavorable_label, dataset.favorable_label]
         pos_ind = unique_labels.index(dataset.favorable_label)
         neg_ind = unique_labels.index(dataset.unfavorable_label)
@@ -234,9 +238,13 @@ def calculate_accuracy(model, dataset):
         print(classification_report(y_true, y_pred))
 
         return sum(y_pred.numpy() == y_true)/len(y_pred)
-            
+
     else:
-        y_pred = model.predict(dataset.features)
+        X = pd.DataFrame(
+                dataset.features, columns=dataset.feature_names
+            )         
+        
+        y_pred = model.predict(X)
         y_true = dataset.labels.ravel()
         print("Classification report for train: ")
         print(classification_report(y_true, y_pred))
@@ -260,27 +268,31 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
                      unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
     dataset = dataset_orig_train
-    X = dataset.features
+    X = pd.DataFrame(
+        dataset.features, columns=dataset.feature_names
+    )    
     y_true = dataset.labels.ravel() 
     sens_attr = dataset.protected_attribute_names[0]  
     sensitive_features = dataset.features[:, dataset.feature_names.index(sens_attr)]
-    
     constraint = EqualizedOdds(difference_bound=0.001)
     classifier = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
-    mitigator = ExponentiatedGradient(classifier, constraint)
-    mitigator.fit(X, y_true, sensitive_features=sensitive_features)        
-    
-    target_model = Fairlearn_Model(model_obj=mitigator, loss_fn=log)
     
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
+        mitigator = ExponentiatedGradientReduction(sens_attr, classifier, constraint)
+        mitigator.fit(X, y_true)        
         # Runnning MIA attack based on subgroups
-        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, target_model)
+        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type, mitigator)
     elif ATTACK == "mia2":
+        mitigator = ExponentiatedGradient(classifier, constraint)
+        mitigator.fit(X, y_true, sensitive_features=sensitive_features)        
+        
+        target_model = Fairlearn_Model(model_obj=mitigator, loss_fn=log)
+        
         target_info_source, reference_info_source = get_info_sources(target_dataset, reference_dataset, target_model)
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']
-    
+        
     print("####Train metrics:")
     print("Train accuracy: ", calculate_accuracy(mitigator, dataset))
         
@@ -303,7 +315,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_val_pred,
                         model=mitigator,
-                        thresh_arr=thresh_arr, metric_arrs=None)
+                        thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
         
         orig_best_ind = np.argmax(val_metrics['bal_acc'])
         
@@ -335,7 +347,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
                             thresh_arr=[thresh_arr[orig_best_ind]], 
                             # 0.5
                             # thresh_arr=[thresh_arr[-1]], 
-                            metric_arrs=test_metrics)
+                            metric_arrs=test_metrics, ATTACK=ATTACK)
 
         describe_metrics(test_metrics, thresh_arr)
         
@@ -395,7 +407,7 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
                        unprivileged_groups, privileged_groups,
                        dataset=dataset_orig_val_pred,
                        model=mod_orig,
-                       thresh_arr=thresh_arr, metric_arrs=None)
+                       thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
     
     orig_best_ind = np.argmax(val_metrics['bal_acc'])
     # for debugging
@@ -427,7 +439,7 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
                         thresh_arr=[thresh_arr[orig_best_ind]], 
                         # 0.5
                         # thresh_arr=[thresh_arr[-1]], 
-                        metric_arrs=test_metrics)
+                        metric_arrs=test_metrics, ATTACK=ATTACK)
 
     describe_metrics(test_metrics, thresh_arr)
             
@@ -489,7 +501,7 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_val_pred,
                         model=mod_orig,
-                        thresh_arr=thresh_arr, metric_arrs=None)
+                        thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
         
         orig_best_ind = np.argmax(val_metrics['bal_acc'])
         
@@ -521,7 +533,7 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
                             thresh_arr=[thresh_arr[orig_best_ind]], 
                             # 0.5
                             # thresh_arr=[thresh_arr[-1]], 
-                            metric_arrs=test_metrics)
+                            metric_arrs=test_metrics, ATTACK=ATTACK)
 
         describe_metrics(test_metrics, thresh_arr)
         

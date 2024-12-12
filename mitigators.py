@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn_rew, get_test_metrics_for_eg, get_egr_model_metrics
+from metrics_utils import compute_metrics, describe_metrics, get_test_metrics, test, get_test_metrics_for_syn_rew, get_test_metrics_for_eg, get_test_metrics_for_cpp
 
 #setup test models
 from models import TModel, MLPClassifierWrapper 
@@ -404,136 +404,136 @@ class PRMitigator(BaseMitigator):
         return pr_orig_metrics
 
 
-# Cost Constrained (Post-processing)
-class CPPMitigator(BaseMitigator):
+# # Cost Constrained (Post-processing)
+# class CPPMitigator(BaseMitigator):
 
-    mitigator_type = 'CPP Mitigator'
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
-                      cpp_orig_metrics, model_type, unprivileged_groups, privileged_groups, THRESH_ARR, SCALER):
-        # cost constraint of fnr will optimize generalized false negative rates, that of
-        # fpr will optimize generalized false positive rates, and weighted will optimize
-        # a weighted combination of both
-        cost_constraint = "weighted" # "fnr", "fpr", "weighted"
+#     mitigator_type = 'CPP Mitigator'
+#     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
+#                       cpp_orig_metrics, model_type, unprivileged_groups, privileged_groups, THRESH_ARR, SCALER):
+#         # cost constraint of fnr will optimize generalized false negative rates, that of
+#         # fpr will optimize generalized false positive rates, and weighted will optimize
+#         # a weighted combination of both
+#         cost_constraint = "weighted" # "fnr", "fpr", "weighted"
 
-        #random seed for calibrated equal odds prediction
-        np.random.seed(1)
+#         #random seed for calibrated equal odds prediction
+#         np.random.seed(1)
 
-        # Verify metric name
-        allowed_constraints = ["fnr", "fpr", "weighted"]
-        if cost_constraint not in allowed_constraints:
-            raise ValueError("Constraint should be one of allowed constraints")
+#         # Verify metric name
+#         allowed_constraints = ["fnr", "fpr", "weighted"]
+#         if cost_constraint not in allowed_constraints:
+#             raise ValueError("Constraint should be one of allowed constraints")
 
-        dataset_orig_train_pred = dataset_orig_train.copy(deepcopy=True)
+#         dataset_orig_train_pred = dataset_orig_train.copy(deepcopy=True)
 
-        if SCALER:
-            scale_orig = StandardScaler()
-            X_train = scale_orig.fit_transform(dataset_orig_train.features)
+#         if SCALER:
+#             scale_orig = StandardScaler()
+#             X_train = scale_orig.fit_transform(dataset_orig_train.features)
 
-            dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
-            X_valid = scale_orig.transform(dataset_orig_valid_pred.features)
+#             dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
+#             X_valid = scale_orig.transform(dataset_orig_valid_pred.features)
 
-            dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
-            X_test = scale_orig.transform(dataset_orig_test_pred.features)
+#             dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
+#             X_test = scale_orig.transform(dataset_orig_test_pred.features)
 
-        else:
-            X_train = dataset_orig_train.features
+#         else:
+#             X_train = dataset_orig_train.features
 
-            dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
-            X_valid = dataset_orig_valid_pred.features
+#             dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
+#             X_valid = dataset_orig_valid_pred.features
 
-            dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
-            X_test = dataset_orig_test_pred.features
+#             dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
+#             X_test = dataset_orig_test_pred.features
 
-        y_train = dataset_orig_train.labels.ravel()
+#         y_train = dataset_orig_train.labels.ravel()
 
-        # Logistic regression classifier and predictions
-        test_model = TModel(model_type)
-        lmod = test_model.get_model()
-        lmod.fit(X_train, y_train)
-        y_train_pred = lmod.predict(X_train)
+#         # Logistic regression classifier and predictions
+#         test_model = TModel(model_type)
+#         lmod = test_model.get_model()
+#         lmod.fit(X_train, y_train)
+#         y_train_pred = lmod.predict(X_train)
 
-        # positive class index
-        pos_ind = np.where(lmod.classes_ == dataset_orig_train.favorable_label)[0][0]
+#         # positive class index
+#         pos_ind = np.where(lmod.classes_ == dataset_orig_train.favorable_label)[0][0]
 
-        dataset_orig_train_pred.labels = y_train_pred
-        y_valid = dataset_orig_valid_pred.labels.ravel()
-        dataset_orig_valid_pred.scores = lmod.predict_proba(X_valid)[:,pos_ind].reshape(-1,1)
+#         dataset_orig_train_pred.labels = y_train_pred
+#         y_valid = dataset_orig_valid_pred.labels.ravel()
+#         dataset_orig_valid_pred.scores = lmod.predict_proba(X_valid)[:,pos_ind].reshape(-1,1)
 
-        y_test = dataset_orig_test_pred.labels.ravel()
-        dataset_orig_test_pred.scores = lmod.predict_proba(X_test)[:,pos_ind].reshape(-1,1)
+#         y_test = dataset_orig_test_pred.labels.ravel()
+#         dataset_orig_test_pred.scores = lmod.predict_proba(X_test)[:,pos_ind].reshape(-1,1)
 
-        num_thresh = 50
-        ba_arr = np.zeros(num_thresh)
-        class_thresh_arr = np.linspace(0.01, THRESH_ARR, num_thresh)
-        for idx, class_thresh in enumerate(class_thresh_arr):
+#         num_thresh = 50
+#         ba_arr = np.zeros(num_thresh)
+#         class_thresh_arr = np.linspace(0.01, THRESH_ARR, num_thresh)
+#         for idx, class_thresh in enumerate(class_thresh_arr):
 
-            fav_inds = dataset_orig_valid_pred.scores > class_thresh
-            dataset_orig_valid_pred.labels[fav_inds] = dataset_orig_valid_pred.favorable_label
-            dataset_orig_valid_pred.labels[~fav_inds] = dataset_orig_valid_pred.unfavorable_label
+#             fav_inds = dataset_orig_valid_pred.scores > class_thresh
+#             dataset_orig_valid_pred.labels[fav_inds] = dataset_orig_valid_pred.favorable_label
+#             dataset_orig_valid_pred.labels[~fav_inds] = dataset_orig_valid_pred.unfavorable_label
 
-            classified_metric_orig_valid = ClassificationMetric(dataset_orig_val,
-                                                     dataset_orig_valid_pred,
-                                                     unprivileged_groups=unprivileged_groups,
-                                                     privileged_groups=privileged_groups)
+#             classified_metric_orig_valid = ClassificationMetric(dataset_orig_val,
+#                                                      dataset_orig_valid_pred,
+#                                                      unprivileged_groups=unprivileged_groups,
+#                                                      privileged_groups=privileged_groups)
 
-            ba_arr[idx] = 0.5*(classified_metric_orig_valid.true_positive_rate()\
-                               +classified_metric_orig_valid.true_negative_rate())
+#             ba_arr[idx] = 0.5*(classified_metric_orig_valid.true_positive_rate()\
+#                                +classified_metric_orig_valid.true_negative_rate())
 
-        best_ind = np.where(ba_arr == np.max(ba_arr))[0][0]
-        best_class_thresh = class_thresh_arr[best_ind]
+#         best_ind = np.where(ba_arr == np.max(ba_arr))[0][0]
+#         best_class_thresh = class_thresh_arr[best_ind]
 
-        # Learn parameters to equalize odds and apply to create a new dataset
-        cpp = CalibratedEqOddsPostprocessing(privileged_groups = privileged_groups,
-                                             unprivileged_groups = unprivileged_groups,
-                                             cost_constraint=cost_constraint,
-                                             seed=None)
-        cpp = cpp.fit(dataset_orig_val, dataset_orig_valid_pred)
-        # Metrics for the validation set
-        fav_inds = dataset_orig_valid_pred.scores > best_class_thresh
-        dataset_orig_valid_pred.labels[fav_inds] = dataset_orig_valid_pred.favorable_label
-        dataset_orig_valid_pred.labels[~fav_inds] = dataset_orig_valid_pred.unfavorable_label
+#         # Learn parameters to equalize odds and apply to create a new dataset
+#         cpp = CalibratedEqOddsPostprocessing(privileged_groups = privileged_groups,
+#                                              unprivileged_groups = unprivileged_groups,
+#                                              cost_constraint=cost_constraint,
+#                                              seed=None)
+#         cpp = cpp.fit(dataset_orig_val, dataset_orig_valid_pred)
+#         # Metrics for the validation set
+#         fav_inds = dataset_orig_valid_pred.scores > best_class_thresh
+#         dataset_orig_valid_pred.labels[fav_inds] = dataset_orig_valid_pred.favorable_label
+#         dataset_orig_valid_pred.labels[~fav_inds] = dataset_orig_valid_pred.unfavorable_label
 
-        #print("#### Validation set")
-        #print("##### Raw predictions - No fairness constraints, only maximizing balanced accuracy")
+#         #print("#### Validation set")
+#         #print("##### Raw predictions - No fairness constraints, only maximizing balanced accuracy")
 
-        metric_valid_bef = compute_metrics(dataset_orig_val, dataset_orig_valid_pred,
-                           unprivileged_groups, privileged_groups, None, disp=False)
+#         metric_valid_bef = compute_metrics(dataset_orig_val, dataset_orig_valid_pred,
+#                            unprivileged_groups, privileged_groups, None, disp=False)
 
-        # Transform the validation set
-        #dataset_transf_valid_pred = ROC.predict(dataset_orig_valid_pred)
-        dataset_transf_valid_pred = cpp.predict(dataset_orig_valid_pred)
+#         # Transform the validation set
+#         #dataset_transf_valid_pred = ROC.predict(dataset_orig_valid_pred)
+#         dataset_transf_valid_pred = cpp.predict(dataset_orig_valid_pred)
 
-        #print("#### Validation set")
-        #print("##### Transformed predictions - With fairness constraints")
-        metric_valid_aft = compute_metrics(dataset_orig_val, dataset_transf_valid_pred,
-                           unprivileged_groups, privileged_groups, None, disp=False)
-        #print(metric_valid_aft)
+#         #print("#### Validation set")
+#         #print("##### Transformed predictions - With fairness constraints")
+#         metric_valid_aft = compute_metrics(dataset_orig_val, dataset_transf_valid_pred,
+#                            unprivileged_groups, privileged_groups, None, disp=False)
+#         #print(metric_valid_aft)
 
-        # Testing: Check if the metric optimized has not become worse
-        #assert np.abs(metric_valid_aft[metric_name]) <= np.abs(metric_valid_bef[metric_name])
+#         # Testing: Check if the metric optimized has not become worse
+#         #assert np.abs(metric_valid_aft[metric_name]) <= np.abs(metric_valid_bef[metric_name])
 
-        # Metrics for the test set
-        fav_inds = dataset_orig_test_pred.scores > best_class_thresh
-        dataset_orig_test_pred.labels[fav_inds] = dataset_orig_test_pred.favorable_label
-        dataset_orig_test_pred.labels[~fav_inds] = dataset_orig_test_pred.unfavorable_label
+#         # Metrics for the test set
+#         fav_inds = dataset_orig_test_pred.scores > best_class_thresh
+#         dataset_orig_test_pred.labels[fav_inds] = dataset_orig_test_pred.favorable_label
+#         dataset_orig_test_pred.labels[~fav_inds] = dataset_orig_test_pred.unfavorable_label
 
-        metric_test_bef = compute_metrics(dataset_orig_test, dataset_orig_test_pred,
-                          unprivileged_groups, privileged_groups, None, disp = False)
+#         metric_test_bef = compute_metrics(dataset_orig_test, dataset_orig_test_pred,
+#                           unprivileged_groups, privileged_groups, None, disp = False)
 
-        #print(metric_test_bef)
+#         #print(metric_test_bef)
 
-        # Metrics for the transformed test set
-        #dataset_transf_test_pred = ROC.predict(dataset_orig_test_pred)
-        dataset_transf_test_pred = cpp.predict(dataset_orig_test_pred)
+#         # Metrics for the transformed test set
+#         #dataset_transf_test_pred = ROC.predict(dataset_orig_test_pred)
+#         dataset_transf_test_pred = cpp.predict(dataset_orig_test_pred)
 
-        #print("#### Test set")
-        #print("##### Transformed predictions - With fairness constraints")
-        cpp_orig_metrics = compute_metrics(dataset_orig_test, dataset_transf_test_pred,
-                          unprivileged_groups, privileged_groups, cpp_orig_metrics, disp=False)
+#         #print("#### Test set")
+#         #print("##### Transformed predictions - With fairness constraints")
+#         cpp_orig_metrics = compute_metrics(dataset_orig_test, dataset_transf_test_pred,
+#                           unprivileged_groups, privileged_groups, cpp_orig_metrics, disp=False)
 
-        describe_metrics(cpp_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
+#         describe_metrics(cpp_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
 
-        return cpp_orig_metrics
+#         return cpp_orig_metrics
 
 # Reject Option (Post-processing)
 class ROMitigator(BaseMitigator):
@@ -669,3 +669,13 @@ class ROMitigator(BaseMitigator):
         describe_metrics(ro_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
 
         return ro_orig_metrics
+
+# Calibrated Equalized Odds (Post-Processing)
+class CPPMitigator(BaseMitigator):
+    mitigator_type = 'CPP Mitigator'
+    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, f_label, uf_label,  unprivileged_groups, privileged_groups, model_type, cpp_metrics, cpp_mia_metrics, ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset=None, reference_dataset=None):
+        # set up dataset
+        dataset = dataset_orig_train
+        cpp_metrics, cpp_mia_metrics = get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, cpp_metrics, cpp_mia_metrics, ATTACK, 'cpp_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+                                
+        return cpp_metrics, cpp_mia_metrics

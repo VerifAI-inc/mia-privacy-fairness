@@ -71,12 +71,12 @@ class TestAlgorithms:
 
             return pr_orig_metrics
 
-    def run_cpp(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, cpp_metrics, model_type, unprivileged_groups, privileged_groups, THRESH_ARR, SCALER):
+    def run_cpp(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, f_label, uf_label,  unprivileged_groups, privileged_groups, model_type, cpp_metrics, cpp_mia_metrics, ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset=None, reference_dataset=None):
         print('\n------------------------------\n')
         print('\n[INFO:] post-processing Calibrated Equal Odds ......\n')
         print('\n------------------------------\n')
         cpp_mitigator = CPPMitigator()
-        cpp_metrics = cpp_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, cpp_metrics, model_type, unprivileged_groups, privileged_groups, THRESH_ARR, SCALER)
+        cpp_metrics = cpp_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, f_label, uf_label,  unprivileged_groups, privileged_groups, model_type, cpp_metrics, cpp_mia_metrics, ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset)
 
         return cpp_metrics
 

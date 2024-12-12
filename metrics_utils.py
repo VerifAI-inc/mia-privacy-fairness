@@ -462,77 +462,114 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
 
     return test_metrics, mia_metrics
 
+
 def print_cpp_accuracies(dataset_orig_train, dataset_orig_test, 
-                          cpp, 
-                          unprivileged_groups, 
-                          f_label, uf_label):
+                         train_pred_cpp, test_pred_cpp, 
+                         unprivileged_groups, f_label, uf_label):
     """
     Print accuracies for different subgroups before and after post-processing
-    
-    Parameters:
-    - dataset_orig_train: Original training dataset
-    - dataset_orig_test: Original test dataset
-    - dataset_orig_train_pred: Training dataset with original predictions
-    - dataset_orig_test_pred: Test dataset with original predictions
-    - cpp: Fitted Calibrated Equal Odds Postprocessing object
-    - unprivileged_groups: Definition of unprivileged groups
-    - privileged_groups: Definition of privileged groups
-    - f_label: Favorable label
-    - uf_label: Unfavorable label
+    using scores to derive predicted labels.
     """
-    # Function to calculate accuracy for a specific subset
+
     def calculate_subset_accuracy(dataset, predictions):
-        return sum(dataset.labels.ravel() == predictions.labels.ravel())/(predictions.labels.ravel().shape[0])
-    
-    # Identify subgroup indices
+        # Derive predicted labels from predictions.scores using a threshold
+        threshold = 0.5
+        # If scores have two columns: second column is probability of favorable label.
+        # If one column, assume it is the probability of favorable label directly.
+        if predictions.scores.ndim == 2 and predictions.scores.shape[1] == 2:
+            pred_prob = predictions.scores[:, 1]
+        else:
+            pred_prob = predictions.scores.ravel()
+
+        pred_labels = np.where(pred_prob >= threshold, 
+                               predictions.favorable_label, 
+                               predictions.unfavorable_label).reshape(-1, 1)
+
+        # Ensure shapes match
+        assert dataset.labels.shape[0] == pred_labels.shape[0], \
+            f"Mismatch in shapes: dataset={dataset.labels.shape}, pred={pred_labels.shape}"
+
+        return np.mean(dataset.labels.ravel() == pred_labels.ravel())
+
+    # Function to get group indices
+    def group_indices(dataset, unprivileged_groups):
+        # This function should return two lists/arrays of indices:
+        # indices for unprivileged groups and indices for privileged groups.
+        # Implement it as per your original code/environment.
+        # For example:
+        cond_unpriv = np.ones(len(dataset.labels), dtype=bool)
+        for grp in unprivileged_groups:
+            for attr, val in grp.items():
+                col_idx = dataset.protected_attribute_names.index(attr)
+                cond_unpriv &= (dataset.protected_attributes[:, col_idx] == val)
+        unpriv_indices = np.where(cond_unpriv)[0]
+        priv_indices = np.setdiff1d(np.arange(len(dataset.labels)), unpriv_indices)
+        return unpriv_indices, priv_indices
+
     train_indices, train_priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
     test_indices, test_priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
     
-    # Create subsets
     def create_subsets(dataset, indices, priv_indices, f_label, uf_label):
         unprivileged_dataset = dataset.subset(indices)
         privileged_dataset = dataset.subset(priv_indices)
-        
-        print("PRIVILEGED DATASET: ", privileged_dataset)
-        
+
         uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
-        f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
-        uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
-        f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
-        
-        print("F_PRIV_INDICES: ", f_priv_indices)
-        
+        f_unpriv_indices  = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
+        uf_priv_indices   = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
+        f_priv_indices    = np.where(privileged_dataset.labels.ravel() == f_label)[0]
+
+        # Return subsets and their indices so we can apply them identically to predictions
         return (
             unprivileged_dataset.subset(uf_unpriv_indices),
             unprivileged_dataset.subset(f_unpriv_indices),
             privileged_dataset.subset(uf_priv_indices),
-            privileged_dataset.subset(f_priv_indices)
+            privileged_dataset.subset(f_priv_indices),
+            uf_unpriv_indices, f_unpriv_indices, uf_priv_indices, f_priv_indices
         )
     
-    # Create train and test subsets
-    train_uf_unpriv, train_f_unpriv, train_uf_priv, train_f_priv = create_subsets(
+    # Create train subsets and indices
+    (train_uf_unpriv, train_f_unpriv, train_uf_priv, train_f_priv, 
+     train_uf_unpriv_idx, train_f_unpriv_idx, train_uf_priv_idx, train_f_priv_idx) = create_subsets(
         dataset_orig_train, train_indices, train_priv_indices, f_label, uf_label
     )
-    test_uf_unpriv, test_f_unpriv, test_uf_priv, test_f_priv = create_subsets(
+
+    # Create test subsets and indices
+    (test_uf_unpriv, test_f_unpriv, test_uf_priv, test_f_priv,
+     test_uf_unpriv_idx, test_f_unpriv_idx, test_uf_priv_idx, test_f_priv_idx) = create_subsets(
         dataset_orig_test, test_indices, test_priv_indices, f_label, uf_label
     )
     
-    print("TRAIN F PRIV", train_f_priv)
-    print("TEST F PRIV", test_f_priv)
-    
-    # Calculate accuracies for original and transformed predictions
+    # Subset predicted datasets using the exact same indices
+    train_unpriv_pred = train_pred_cpp.subset(train_indices)
+    train_priv_pred = train_pred_cpp.subset(train_priv_indices)
+
+    test_unpriv_pred = test_pred_cpp.subset(test_indices)
+    test_priv_pred = test_pred_cpp.subset(test_priv_indices)
+
+    # Use previously obtained indices directly
+    train_pred_uf_unpriv = train_unpriv_pred.subset(train_uf_unpriv_idx)
+    train_pred_f_unpriv = train_unpriv_pred.subset(train_f_unpriv_idx)
+    train_pred_uf_priv = train_priv_pred.subset(train_uf_priv_idx)
+    train_pred_f_priv = train_priv_pred.subset(train_f_priv_idx)
+
+    test_pred_uf_unpriv = test_unpriv_pred.subset(test_uf_unpriv_idx)
+    test_pred_f_unpriv = test_unpriv_pred.subset(test_f_unpriv_idx)
+    test_pred_uf_priv = test_priv_pred.subset(test_uf_priv_idx)
+    test_pred_f_priv = test_priv_pred.subset(test_f_priv_idx)
+
+    # Calculate accuracies using derived predictions
     train_results = {
-        "uf_unpriv_cpp": calculate_subset_accuracy(train_uf_unpriv, cpp.predict(train_uf_unpriv)),
-        "f_unpriv_cpp": calculate_subset_accuracy(train_f_unpriv, cpp.predict(train_f_unpriv)),
-        "uf_priv_cpp": calculate_subset_accuracy(train_uf_priv, cpp.predict(train_uf_priv)),
-        "f_priv_cpp": calculate_subset_accuracy(train_f_priv, cpp.predict(train_f_priv))
+        "uf_unpriv_cpp": calculate_subset_accuracy(train_uf_unpriv, train_pred_uf_unpriv),
+        "f_unpriv_cpp": calculate_subset_accuracy(train_f_unpriv, train_pred_f_unpriv),
+        "uf_priv_cpp": calculate_subset_accuracy(train_uf_priv, train_pred_uf_priv),
+        "f_priv_cpp": calculate_subset_accuracy(train_f_priv, train_pred_f_priv)
     }
-    
+
     test_results = {
-        "uf_unpriv_cpp": calculate_subset_accuracy(test_uf_unpriv, cpp.predict(test_uf_unpriv)),
-        "f_unpriv_cpp": calculate_subset_accuracy(test_f_unpriv, cpp.predict(test_f_unpriv)),
-        "uf_priv_cpp": calculate_subset_accuracy(test_uf_priv, cpp.predict(test_uf_priv)),
-        "f_priv_cpp": calculate_subset_accuracy(test_f_priv, cpp.predict(test_f_priv))
+        "uf_unpriv_cpp": calculate_subset_accuracy(test_uf_unpriv, test_pred_uf_unpriv),
+        "f_unpriv_cpp": calculate_subset_accuracy(test_f_unpriv, test_pred_f_unpriv),
+        "uf_priv_cpp": calculate_subset_accuracy(test_uf_priv, test_pred_uf_priv),
+        "f_priv_cpp": calculate_subset_accuracy(test_f_priv, test_pred_f_priv)
     }
     
     # Print results in a formatted table
@@ -552,6 +589,8 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
                      unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
     dataset = dataset_orig_train
+    dataset_orig_test, dataset_orig_val = dataset_orig_test.split([0.5], shuffle=True)
+    
     dataset_orig_train_pred = dataset_orig_train.copy(deepcopy=True)
     dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
     dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
@@ -611,18 +650,22 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
     # Initialize the CalibratedEqualizedOdds post-processor
     cpp = CalibratedEqOddsPostprocessing(privileged_groups = privileged_groups,
                                      unprivileged_groups = unprivileged_groups,
-                                     cost_constraint="weighted",
+                                     cost_constraint="fnr",
                                      seed=12345679)
     cpp = cpp.fit(dataset_orig_val, dataset_orig_valid_pred)
     
+    # **Key change**: Predict once on entire datasets, not per subgroup
+    train_pred_cpp = cpp.predict(dataset_orig_train_pred)
+    test_pred_cpp = cpp.predict(dataset_orig_test_pred)
+
     # Print accuracies
     train_results, test_results = print_cpp_accuracies(
         dataset_orig_train, dataset_orig_test, 
-        cpp, 
+        train_pred_cpp, test_pred_cpp,
         unprivileged_groups, 
         f_label, uf_label
     )
-
+    
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
         # Runnning MIA attack based on subgroups

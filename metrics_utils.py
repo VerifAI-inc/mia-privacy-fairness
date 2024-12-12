@@ -24,6 +24,7 @@ import pandas as pd
 
 from fairlearn.reductions import EqualizedOdds, ExponentiatedGradient
 from aif360.sklearn.inprocessing import ExponentiatedGradientReduction
+from aif360.algorithms.postprocessing.calibrated_eq_odds_postprocessing import CalibratedEqOddsPostprocessing
 
 # mia2
 from privacy_meter.model import Fairlearn_Model, Sklearn_Model
@@ -461,6 +462,252 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
 
     return test_metrics, mia_metrics
 
+def print_cpp_accuracies(dataset_orig_train, dataset_orig_test, 
+                          cpp, 
+                          unprivileged_groups, 
+                          f_label, uf_label):
+    """
+    Print accuracies for different subgroups before and after post-processing
+    
+    Parameters:
+    - dataset_orig_train: Original training dataset
+    - dataset_orig_test: Original test dataset
+    - dataset_orig_train_pred: Training dataset with original predictions
+    - dataset_orig_test_pred: Test dataset with original predictions
+    - cpp: Fitted Calibrated Equal Odds Postprocessing object
+    - unprivileged_groups: Definition of unprivileged groups
+    - privileged_groups: Definition of privileged groups
+    - f_label: Favorable label
+    - uf_label: Unfavorable label
+    """
+    # Function to calculate accuracy for a specific subset
+    def calculate_subset_accuracy(dataset, predictions):
+        return sum(dataset.labels.ravel() == predictions.labels.ravel())/(predictions.labels.ravel().shape[0])
+    
+    # Identify subgroup indices
+    train_indices, train_priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
+    test_indices, test_priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
+    
+    # Create subsets
+    def create_subsets(dataset, indices, priv_indices, f_label, uf_label):
+        unprivileged_dataset = dataset.subset(indices)
+        privileged_dataset = dataset.subset(priv_indices)
+        
+        print("PRIVILEGED DATASET: ", privileged_dataset)
+        
+        uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
+        f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
+        uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
+        f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
+        
+        print("F_PRIV_INDICES: ", f_priv_indices)
+        
+        return (
+            unprivileged_dataset.subset(uf_unpriv_indices),
+            unprivileged_dataset.subset(f_unpriv_indices),
+            privileged_dataset.subset(uf_priv_indices),
+            privileged_dataset.subset(f_priv_indices)
+        )
+    
+    # Create train and test subsets
+    train_uf_unpriv, train_f_unpriv, train_uf_priv, train_f_priv = create_subsets(
+        dataset_orig_train, train_indices, train_priv_indices, f_label, uf_label
+    )
+    test_uf_unpriv, test_f_unpriv, test_uf_priv, test_f_priv = create_subsets(
+        dataset_orig_test, test_indices, test_priv_indices, f_label, uf_label
+    )
+    
+    print("TRAIN F PRIV", train_f_priv)
+    print("TEST F PRIV", test_f_priv)
+    
+    # Calculate accuracies for original and transformed predictions
+    train_results = {
+        "uf_unpriv_cpp": calculate_subset_accuracy(train_uf_unpriv, cpp.predict(train_uf_unpriv)),
+        "f_unpriv_cpp": calculate_subset_accuracy(train_f_unpriv, cpp.predict(train_f_unpriv)),
+        "uf_priv_cpp": calculate_subset_accuracy(train_uf_priv, cpp.predict(train_uf_priv)),
+        "f_priv_cpp": calculate_subset_accuracy(train_f_priv, cpp.predict(train_f_priv))
+    }
+    
+    test_results = {
+        "uf_unpriv_cpp": calculate_subset_accuracy(test_uf_unpriv, cpp.predict(test_uf_unpriv)),
+        "f_unpriv_cpp": calculate_subset_accuracy(test_f_unpriv, cpp.predict(test_f_unpriv)),
+        "uf_priv_cpp": calculate_subset_accuracy(test_uf_priv, cpp.predict(test_uf_priv)),
+        "f_priv_cpp": calculate_subset_accuracy(test_f_priv, cpp.predict(test_f_priv))
+    }
+    
+    # Print results in a formatted table
+    print("Accuracies Comparison:")
+    print("-" * 70)
+    print(f"{'Group':<15}{'CPP Train':<20}{'CPP Test':<20}")
+    print("-" * 70)
+    print(f"{'UF Unpriv':<15}{train_results['uf_unpriv_cpp']:<20.4f}{test_results['uf_unpriv_cpp']:<20.4f}")
+    print(f"{'UF Priv':<15}{train_results['uf_priv_cpp']:<20.4f}{test_results['uf_priv_cpp']:<20.4f}")
+    print(f"{'F Unpriv':<15}{train_results['f_unpriv_cpp']:<20.4f}{test_results['f_unpriv_cpp']:<20.4f}")
+    print(f"{'F Priv':<15}{train_results['f_priv_cpp']:<20.4f}{test_results['f_priv_cpp']:<20.4f}")
+    print("-" * 70)
+    
+    return train_results, test_results
+
+def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
+                     test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
+                     unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
+    dataset = dataset_orig_train
+    dataset_orig_train_pred = dataset_orig_train.copy(deepcopy=True)
+    dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
+    dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
+
+    dataset_new_valid_pred = dataset_orig_val.copy(deepcopy=True)
+    dataset_new_test_pred = dataset_orig_test.copy(deepcopy=True)
+    
+    if SCALER:
+        scale_orig = StandardScaler()
+        X_train = scale_orig.fit_transform(dataset.features)
+        X_test = scale_orig.fit_transform(dataset_orig_test.features)
+        X_valid = scale_orig.fit_transform(dataset_orig_val.features)
+    else:
+        X_train = dataset.features
+        X_test = dataset_orig_test.features
+        X_valid = dataset_orig_val.features
+        
+    y_test = dataset_orig_test.labels.ravel()
+
+    test_model = TModel(model_type)
+    mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
+    
+    fav_idx = np.where(mod_orig.classes_ == dataset.favorable_label)[0][0]
+    y_train_pred_prob = mod_orig.predict_proba(X_train)[:,fav_idx]
+    y_valid_pred_prob = mod_orig.predict_proba(X_valid)[:,fav_idx]
+    y_test_pred_prob = mod_orig.predict_proba(X_test)[:,fav_idx]
+
+    class_thresh = 0.5
+    dataset_orig_train_pred.scores = np.column_stack([
+        1 - y_train_pred_prob,  # Probability for class 0
+        y_train_pred_prob       # Probability for class 1
+    ])
+
+    dataset_orig_valid_pred.scores = y_valid_pred_prob.reshape(-1,1)
+    # Assign two columns: probability for class 0 and class 1
+    dataset_orig_test_pred.scores = np.column_stack([
+        1 - y_test_pred_prob,  # Probability for class 0
+        y_test_pred_prob       # Probability for class 1
+    ])
+
+    y_valid_pred = np.zeros_like(dataset_orig_valid_pred.labels)
+    y_valid_pred[y_valid_pred_prob >= class_thresh] = dataset_orig_valid_pred.favorable_label
+    y_valid_pred[~(y_valid_pred_prob >= class_thresh)] = dataset_orig_valid_pred.unfavorable_label
+    dataset_orig_valid_pred.labels = y_valid_pred
+        
+    # Assign predicted labels based on the threshold
+    y_train_pred = np.where(y_train_pred_prob >= class_thresh, 
+                            dataset_orig_train_pred.favorable_label, 
+                            dataset_orig_train_pred.unfavorable_label)
+    dataset_orig_train_pred.labels = y_train_pred.reshape(-1, 1)
+
+    y_test_pred = np.where(y_test_pred_prob >= class_thresh, 
+                           dataset_orig_test_pred.favorable_label, 
+                           dataset_orig_test_pred.unfavorable_label)
+    dataset_orig_test_pred.labels = y_test_pred.reshape(-1, 1)
+
+    # Initialize the CalibratedEqualizedOdds post-processor
+    cpp = CalibratedEqOddsPostprocessing(privileged_groups = privileged_groups,
+                                     unprivileged_groups = unprivileged_groups,
+                                     cost_constraint="weighted",
+                                     seed=12345679)
+    cpp = cpp.fit(dataset_orig_val, dataset_orig_valid_pred)
+    
+    # Print accuracies
+    train_results, test_results = print_cpp_accuracies(
+        dataset_orig_train, dataset_orig_test, 
+        cpp, 
+        unprivileged_groups, 
+        f_label, uf_label
+    )
+
+    if ATTACK == "mia1":
+        thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
+        # Runnning MIA attack based on subgroups
+        results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type + "_cpp", cpp)
+    elif ATTACK == "mia2":
+        target_model = Sklearn_Model(model_obj=cpp, loss_fn=log)
+        target_info_source, reference_info_source = get_info_sources(target_dataset, reference_dataset, target_model)
+        _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
+        thresh_arr = pop_metrics['thresholds']
+    
+    print("####Train metrics:")
+    print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
+        
+    # find the best threshold for balanced accuracy
+    print('Validating Original ...')
+    
+    if SCALER:
+        scale_orig = StandardScaler()
+        dataset_orig_val_pred = dataset_orig_val.copy(deepcopy=True)
+        dataset_orig_val_pred.features = scale_orig.fit_transform(dataset_orig_val_pred.features)
+        dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
+        dataset_orig_test_pred.features = scale_orig.fit_transform(dataset_orig_test_pred.features)
+    else:
+        dataset_orig_val_pred = dataset_orig_val.copy(deepcopy=True)
+        dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
+        
+    if (f_label != None and uf_label != None):
+        val_metrics = test(f_label, uf_label,
+                        unprivileged_groups, privileged_groups,
+                        dataset=dataset_orig_val_pred,
+                        model=mod_orig,
+                        thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
+        
+        orig_best_ind = np.argmax(val_metrics['bal_acc'])
+        
+        # for debugging
+        print("Best thresh: ", thresh_arr[orig_best_ind])
+
+        disp_imp = np.array(val_metrics['disp_imp'])
+        disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
+
+        if DISPLAY:
+            plot(thresh_arr, model_type + ' Original Classification Thresholds',
+                val_metrics['bal_acc'], 'Balanced Accuracy',
+                disp_imp_err, '1 - min(DI, 1/DI)')
+
+            plot(thresh_arr, model_type + ' Original Classification Thresholds',
+                val_metrics['bal_acc'], 'Balanced Accuracy',
+                val_metrics['avg_odds_diff'], 'avg. odds diff.')
+
+            plt.show()
+
+        describe_metrics(val_metrics, thresh_arr)
+
+        print('Testing Original ...')
+        test_metrics = test(f_label, uf_label,
+                            unprivileged_groups, privileged_groups,
+                            dataset=dataset_orig_test_pred,
+                            model=mod_orig,
+                            # select thereshold based on best balanced accuracy
+                            thresh_arr=[thresh_arr[orig_best_ind]], 
+                            # 0.5
+                            # thresh_arr=[thresh_arr[-1]], 
+                            metric_arrs=test_metrics, ATTACK=ATTACK)
+
+        describe_metrics(test_metrics, thresh_arr)
+        
+    for i in results:
+        print(i)
+        
+    # metrics array to hold the results
+    if mia_metrics is None:
+        mia_metrics = defaultdict(list)
+
+    # Add the results to test_metrics object
+    # MIA results for overall dataset and subpopulations
+    for i in range(len(results)):
+        mia_metrics[f"{results[i].get_name()}_mia_auc"].append(results[i].get_auc())
+        mia_metrics[f"{results[i].get_name()}_mia_privacy_risk"].append(results[i].get_privacy_risk())
+        mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
+        mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
+        mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
+
+    return test_metrics, mia_metrics
+
 def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
                      unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
@@ -581,8 +828,8 @@ def get_orig_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_g
     f_priv_dataset = privileged_dataset.subset(f_priv_indices)
     
     results["train_0_0"] = calculate_accuracy(mod_orig, uf_unpriv_dataset)
-    results["train_0_1"] = calculate_accuracy(mod_orig, f_unpriv_dataset)
     results["train_1_0"] = calculate_accuracy(mod_orig, uf_priv_dataset)
+    results["train_0_1"] = calculate_accuracy(mod_orig, f_unpriv_dataset)
     results["train_1_1"] = calculate_accuracy(mod_orig, f_priv_dataset)
     
     # TESTING ACCURACIES
@@ -604,9 +851,20 @@ def get_orig_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_g
     f_priv_dataset = privileged_dataset.subset(f_priv_indices)
     
     results["test_0_0"] = calculate_accuracy(mod_orig, uf_unpriv_dataset)
-    results["test_0_1"] = calculate_accuracy(mod_orig, f_unpriv_dataset)
     results["test_1_0"] = calculate_accuracy(mod_orig, uf_priv_dataset)
+    results["test_0_1"] = calculate_accuracy(mod_orig, f_unpriv_dataset)
     results["test_1_1"] = calculate_accuracy(mod_orig, f_priv_dataset)
+    
+    # Print accuracies as a table
+    print("Accuracies:")
+    print("-" * 50)
+    print(f"{'Group':<15}{'Train Accuracy':<20}{'Test Accuracy':<20}")
+    print("-" * 50)
+    print(f"{'0_-':<15}{results['train_0_0']:<20.4f}{results['test_0_0']:<20.4f}")
+    print(f"{'1_-':<15}{results['train_1_0']:<20.4f}{results['test_1_0']:<20.4f}")
+    print(f"{'0_+':<15}{results['train_0_1']:<20.4f}{results['test_0_1']:<20.4f}")
+    print(f"{'1_+':<15}{results['train_1_1']:<20.4f}{results['test_1_1']:<20.4f}")
+    print("-" * 50)
     
     return results
 

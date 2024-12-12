@@ -107,8 +107,9 @@ class DTModel(BaseModel):
             fit_params = {'decisiontreeclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
         elif ATTACK == "mia2":
+            fit_params = {'decisiontreeclassifier__sample_weight': dataset_train.instance_weights}
             model = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
-            model.fit(dataset_train.features, dataset_train.labels.ravel())
+            model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
 
         return model
 

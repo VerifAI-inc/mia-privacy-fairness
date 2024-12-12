@@ -176,9 +176,28 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
         loss_test = log_losses(preds_test["label"], preds_test["1"])  
         
         # analyze_and_visualize_losses(loss_train, loss_test)
-    # elif model_type == "dt_eg":
-        # loss_train = mod_orig.get_loss(df_train.drop(columns=['labels']), df_train['labels'])
-        # loss_test = mod_orig.get_loss(df_test.drop(columns=['labels']), df_test['labels'])
+    elif model_type == "dt_cpp":
+        dataset_transf_test_pred = mod_orig.predict(dataset_orig_test)
+        dataset_transf_train_pred = mod_orig.predict(dataset_orig_train)
+        count = 0
+        for i in range(0, len(dataset_transf_test_pred.scores)):
+            if (dataset_transf_train_pred.scores[i] != dataset_transf_test_pred.scores[i]):
+                count = count + 1
+        print("SCORES TRAIN: ", mod_orig.predict(dataset_orig_train).scores)
+        print("SCORES TEST: ", mod_orig.predict(dataset_orig_test).scores)
+        print("DIFFERENCE COUNT: ", count)
+        preds_train = pd.DataFrame(mod_orig.predict(dataset_orig_train).scores, columns=["1"])
+        preds_test = pd.DataFrame(mod_orig.predict(dataset_orig_test).scores, columns=["1"])
+
+        # Add true labels
+        preds_train["label"] = dataset_orig_train.labels
+        preds_test["label"] = dataset_orig_test.labels
+
+        # Calculate per-example loss for training data
+        loss_train = log_losses(preds_train["label"], preds_train["1"])
+
+        # Calculate per-example loss for testing data
+        loss_test = log_losses(preds_test["label"], preds_test["1"])
         
         # analyze_and_visualize_losses(loss_train, loss_test)
     else: #model_type == "lr" or model_type == "nn":

@@ -594,9 +594,6 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
     dataset_orig_train_pred = dataset_orig_train.copy(deepcopy=True)
     dataset_orig_valid_pred = dataset_orig_val.copy(deepcopy=True)
     dataset_orig_test_pred = dataset_orig_test.copy(deepcopy=True)
-
-    dataset_new_valid_pred = dataset_orig_val.copy(deepcopy=True)
-    dataset_new_test_pred = dataset_orig_test.copy(deepcopy=True)
     
     if SCALER:
         scale_orig = StandardScaler()
@@ -608,8 +605,6 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
         X_test = dataset_orig_test.features
         X_valid = dataset_orig_val.features
         
-    y_test = dataset_orig_test.labels.ravel()
-
     test_model = TModel(model_type)
     mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
     

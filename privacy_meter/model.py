@@ -785,8 +785,7 @@ class Sklearn_Model(Model):
             return [self.__tf_list_to_np_list(y) for y in x]
         else:
             return x.numpy()
-
-
+        
 class Fairlearn_Model(Model):
     """Inherits from the Model class, an interface to query a model without any assumption on how it is implemented.
     This particular class is to be used with tensorflow models.
@@ -866,12 +865,20 @@ class PPModel(Model):
     Inherits from the Model class, an interface to query a model without any assumption on how it is implemented.
     """
 
-    def __init__(self, model_obj, loss_fn):
+    def __init__(self, 
+                 model_obj, 
+                 loss_fn, 
+                 feature_columns,  # List of feature column names
+                 protected_attribute_name,
+                 label_name):
         """Constructor
 
         Args:
             model_obj: Model object.
             loss_fn: Loss function.
+            feature_columns: List of feature column names.
+            protected_attribute_name: Name of the protected attribute (e.g., 'age').
+            label_name: Name of the label column.
         """
 
         # Imports tensorflow with global scope
@@ -879,6 +886,9 @@ class PPModel(Model):
 
         # Initializes the parent model
         super().__init__(model_obj, loss_fn)
+        self.protected_attribute_name = protected_attribute_name
+        self.feature_columns = feature_columns
+        self.label_name = label_name
 
     def get_logits(self, batch_samples):
         """Function to get the model output from a given input.
@@ -889,8 +899,9 @@ class PPModel(Model):
         Returns:
             Model output.
         """        
+        scores = self.model_obj.predict(batch_samples).scores
 
-        return 
+        return scores.flatten()
 
     def get_loss(self, batch_samples, batch_labels, per_point=True):
         """Function to get the model loss on a given input and an expected output.
@@ -908,25 +919,23 @@ class PPModel(Model):
         y = batch_labels
 
         df = pd.DataFrame(X)
-        df.columns = [f'feature_{i}' for i in range(X.shape[1])]
-        df['label'] = y
+        df.columns = self.feature_columns
+        df[self.label_name] = y
 
         # Create a BinaryLabelDataset
         dataset = BinaryLabelDataset(
             favorable_label=1.0,
             unfavorable_label=0.0,
             df=df,
-            label_names=['label'],
-            protected_attribute_names=[protected_attribute_name],
-            privileged_protected_attributes=[[1]],
-            unprivileged_protected_attributes=[[0]]
+            label_names=[self.label_name],
+            protected_attribute_names=[self.protected_attribute_name]
         )
+                
+        logits = self.get_logits(dataset)
         
-        bl_dataset = 
+        loss = self.loss_fn(batch_labels, logits)
 
-        return self.loss_fn(batch_labels, self.get_logits(bl_dataset))
-
-        # return self.loss_fn(batch_labels, self.get_logits(batch_samples))
+        return loss
 
     def get_grad(self, batch_samples, batch_labels):
         return None

@@ -27,7 +27,7 @@ from aif360.sklearn.inprocessing import ExponentiatedGradientReduction
 from aif360.algorithms.postprocessing.calibrated_eq_odds_postprocessing import CalibratedEqOddsPostprocessing
 
 # mia2
-from privacy_meter.model import Fairlearn_Model, Sklearn_Model
+from privacy_meter.model import Fairlearn_Model, Sklearn_Model, PPModel
 from sklearn.tree import DecisionTreeClassifier
 from fairlearn.metrics import MetricFrame
 from fairlearn.metrics import equalized_odds_difference
@@ -666,7 +666,7 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
         # Runnning MIA attack based on subgroups
         results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type + "_cpp", cpp)
     elif ATTACK == "mia2":
-        target_model = Sklearn_Model(model_obj=cpp, loss_fn=log)
+        target_model = PPModel(model_obj=cpp, loss_fn=log, feature_columns=dataset.feature_names, protected_attribute_name='age', label_name=dataset.label_names[0])
         target_info_source, reference_info_source = get_info_sources(target_dataset, reference_dataset, target_model)
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']

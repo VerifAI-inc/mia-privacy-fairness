@@ -176,16 +176,45 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
         loss_test = log_losses(preds_test["label"], preds_test["1"])  
         
         # analyze_and_visualize_losses(loss_train, loss_test)
+    elif model_type == "dt_egr":
+        X_train = pd.DataFrame(
+            dataset_orig_train.features, columns=dataset_orig_train.feature_names
+        )
+        
+        X_test = pd.DataFrame(
+            dataset_orig_test.features, columns=dataset_orig_test.feature_names
+        )
+        
+        loss = []
+        preds_train = pd.DataFrame()
+        preds_train["label"] = dataset_orig_train.labels.ravel()
+        
+        for i in range(len(mod_orig.predictors_)):
+            loss.append(
+                mod_orig.weights_[i]
+                * log_losses(
+                    preds_train["label"],
+                    mod_orig.predictors_[i].predict_proba(X_train)[:, -1],
+                )
+            )
+
+        loss_train = np.mean(loss, axis=0)
+        
+        loss = []
+        preds_test = pd.DataFrame()
+        preds_test["label"] = dataset_orig_test.labels.ravel()
+        
+        for i in range(len(mod_orig.predictors_)):
+            loss.append(
+                mod_orig.weights_[i]
+                * log_losses(
+                    preds_test["label"],
+                    mod_orig.predictors_[i].predict_proba(X_test)[:, -1],
+                )
+            )
+
+        loss_test = np.mean(loss, axis=0)
     elif model_type == "dt_cpp":
-        dataset_transf_test_pred = mod_orig.predict(dataset_orig_test)
-        dataset_transf_train_pred = mod_orig.predict(dataset_orig_train)
-        count = 0
-        for i in range(0, len(dataset_transf_test_pred.scores)):
-            if (dataset_transf_train_pred.scores[i] != dataset_transf_test_pred.scores[i]):
-                count = count + 1
-        print("SCORES TRAIN: ", mod_orig.predict(dataset_orig_train).scores)
-        print("SCORES TEST: ", mod_orig.predict(dataset_orig_test).scores)
-        print("DIFFERENCE COUNT: ", count)
         preds_train = pd.DataFrame(mod_orig.predict(dataset_orig_train).scores, columns=["1"])
         preds_test = pd.DataFrame(mod_orig.predict(dataset_orig_test).scores, columns=["1"])
 

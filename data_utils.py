@@ -178,9 +178,30 @@ class DatasetBuilder:
             )
             
         elif self.DATASET == 'compas':
-            self.privileged_groups = [{'race': 1}]
-            self.unprivileged_groups = [{'race': 0}]
-            dataset = load_preproc_data_compas()
+            protected_attribute_used = 1
+
+            if protected_attribute_used == 0:
+              self.privileged_groups = [{'race': 1}]
+              self.unprivileged_groups = [{'race': 0}]
+              df = pd.read_csv("./data/compas_preprocessed_final.csv")
+              dataset = BinaryLabelDataset(
+                  favorable_label=1,  
+                  unfavorable_label=0,  
+                  df=df,
+                  label_names=['two_year_recid'], 
+                  protected_attribute_names=['race'])
+
+            else:
+              self.privileged_groups = [{'sex': 1}]
+              self.unprivileged_groups = [{'sex': 0}]
+              df = pd.read_csv("./data/compas_preprocessed_final.csv")
+              dataset = BinaryLabelDataset(
+                  favorable_label=1,  
+                  unfavorable_label=0,  
+                  df=df,
+                  label_names=['two_year_recid'], 
+                  protected_attribute_names=['sex']  
+            )
 
         elif self.DATASET == 'german_age':
             self.privileged_groups = [{'age': 1}]

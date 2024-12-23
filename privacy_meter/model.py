@@ -785,7 +785,8 @@ class Sklearn_Model(Model):
             return [self.__tf_list_to_np_list(y) for y in x]
         else:
             return x.numpy()
-        
+
+
 class Fairlearn_Model(Model):
     """Inherits from the Model class, an interface to query a model without any assumption on how it is implemented.
     This particular class is to be used with tensorflow models.

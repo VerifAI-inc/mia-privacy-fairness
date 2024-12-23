@@ -44,7 +44,7 @@ def log(y, pre):
     pre = np.clip(pre, e, 1 - e)
     return - y * np.log(pre) - (1 - y) * np.log(1 - pre)
 
-def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, model, thresh_arr, metric_arrs, ATTACK):
+def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, model, thresh_arr, metric_arrs):
     print("=======================================================================")
     print("TEST")
     try:
@@ -138,13 +138,6 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
 
         # Privileged group negative predictions
         priv_negative_predictions = np.sum(y_val_pred[priv_indices] == uf_label)
-
-        # Print the results
-        print(f"Unprivileged Positive Predictions (Favorable): {unpriv_positive_predictions}")
-        print(f"Privileged Positive Predictions (Favorable): {priv_positive_predictions}")
-        
-        print(f"Unprivileged Negative Predictions: {unpriv_negative_predictions}")
-        print(f"Privileged Negative Predictions: {priv_negative_predictions}") 
         
         metric_arrs['avg_odds_diff'].append(metric.average_odds_difference())
         metric_arrs['disp_imp'].append(1 - min((metric.disparate_impact()), 1/metric.disparate_impact()))
@@ -271,31 +264,26 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
                      unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
     dataset = dataset_orig_train
-    X = pd.DataFrame(
-        dataset.features, columns=dataset.feature_names
-    )    
+    X = dataset.features
     y_true = dataset.labels.ravel() 
     sens_attr = dataset.protected_attribute_names[0]  
     sensitive_features = dataset.features[:, dataset.feature_names.index(sens_attr)]
     
     constraint = EqualizedOdds(difference_bound=0.001)
     classifier = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
-    
     mitigator = ExponentiatedGradient(classifier, constraint)
-    mitigator.fit(X, y_true, sensitive_features=sensitive_features)  
+    mitigator.fit(X, y_true, sensitive_features=sensitive_features)
     
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
-        # mitigator = ExponentiatedGradientReduction(sens_attr, classifier, constraint)
-        # mitigator.fit(X, y_true)        
         # Runnning MIA attack based on subgroups
         results = run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, model_type + "_egr", mitigator)
-    elif ATTACK == "mia2":      
+    elif ATTACK == "mia2":
         target_model = Fairlearn_Model(model_obj=mitigator, loss_fn=log)
         target_info_source, reference_info_source = get_info_sources(target_dataset, reference_dataset, target_model)
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']
-        
+    
     print("####Train metrics:")
     print("Train accuracy: ", calculate_accuracy(mitigator, dataset))
         
@@ -318,7 +306,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_val_pred,
                         model=mitigator,
-                        thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
+                        thresh_arr=thresh_arr, metric_arrs=None)
         
         orig_best_ind = np.argmax(val_metrics['bal_acc'])
         
@@ -350,7 +338,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
                             thresh_arr=[thresh_arr[orig_best_ind]], 
                             # 0.5
                             # thresh_arr=[thresh_arr[-1]], 
-                            metric_arrs=test_metrics, ATTACK=ATTACK)
+                            metric_arrs=test_metrics)
 
         describe_metrics(test_metrics, thresh_arr)
         
@@ -410,7 +398,7 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
                        unprivileged_groups, privileged_groups,
                        dataset=dataset_orig_val_pred,
                        model=mod_orig,
-                       thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
+                       thresh_arr=thresh_arr, metric_arrs=None)
     
     orig_best_ind = np.argmax(val_metrics['bal_acc'])
     # for debugging
@@ -442,7 +430,7 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
                         thresh_arr=[thresh_arr[orig_best_ind]], 
                         # 0.5
                         # thresh_arr=[thresh_arr[-1]], 
-                        metric_arrs=test_metrics, ATTACK=ATTACK)
+                        metric_arrs=test_metrics)
 
     describe_metrics(test_metrics, thresh_arr)
             
@@ -745,7 +733,7 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_val_pred,
                         model=mod_orig,
-                        thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
+                        thresh_arr=thresh_arr, metric_arrs=None)
         
         orig_best_ind = np.argmax(val_metrics['bal_acc'])
         
@@ -777,7 +765,7 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
                             thresh_arr=[thresh_arr[orig_best_ind]], 
                             # 0.5
                             # thresh_arr=[thresh_arr[-1]], 
-                            metric_arrs=test_metrics, ATTACK=ATTACK)
+                            metric_arrs=test_metrics)
 
         describe_metrics(test_metrics, thresh_arr)
         
@@ -839,7 +827,7 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
                         unprivileged_groups, privileged_groups,
                         dataset=dataset_orig_val_pred,
                         model=mod_orig,
-                        thresh_arr=thresh_arr, metric_arrs=None, ATTACK=ATTACK)
+                        thresh_arr=thresh_arr, metric_arrs=None)
         
         orig_best_ind = np.argmax(val_metrics['bal_acc'])
         
@@ -871,7 +859,7 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
                             thresh_arr=[thresh_arr[orig_best_ind]], 
                             # 0.5
                             # thresh_arr=[thresh_arr[-1]], 
-                            metric_arrs=test_metrics, ATTACK=ATTACK)
+                            metric_arrs=test_metrics)
 
         describe_metrics(test_metrics, thresh_arr)
         
@@ -892,118 +880,3 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
 
     return test_metrics, mia_metrics
-
-def get_orig_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, model_type, SCALER, ATTACK):
-    results = {}
-    
-    # TRAINING ACCURACIES
-    # Fit the model
-    test_model = TModel(model_type)
-    mod_orig = test_model.set_model(dataset_orig_train, SCALER, ATTACK)
-    
-    # indices of examples in the unprivileged and privileged groups
-    indices, priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
-
-    # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
-    unprivileged_dataset = dataset_orig_train.subset(indices) # unprivileaged
-    privileged_dataset = dataset_orig_train.subset(priv_indices) # privilegaed
-    
-    # subgroups
-    uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
-    uf_unpriv_dataset = unprivileged_dataset.subset(uf_unpriv_indices)
-    f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
-    f_unpriv_dataset = unprivileged_dataset.subset(f_unpriv_indices)
-    uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
-    uf_priv_dataset = privileged_dataset.subset(uf_priv_indices)
-    f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
-    f_priv_dataset = privileged_dataset.subset(f_priv_indices)
-    
-    results["train_0_0"] = calculate_accuracy(mod_orig, uf_unpriv_dataset)
-    results["train_1_0"] = calculate_accuracy(mod_orig, uf_priv_dataset)
-    results["train_0_1"] = calculate_accuracy(mod_orig, f_unpriv_dataset)
-    results["train_1_1"] = calculate_accuracy(mod_orig, f_priv_dataset)
-    
-    # TESTING ACCURACIES
-    # indices of examples in the unprivileged and privileged groups
-    indices, priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
-
-    # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
-    unprivileged_dataset = dataset_orig_test.subset(indices) # unprivileaged
-    privileged_dataset = dataset_orig_test.subset(priv_indices) # privilegaed
-    
-    # subgroups
-    uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
-    uf_unpriv_dataset = unprivileged_dataset.subset(uf_unpriv_indices)
-    f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
-    f_unpriv_dataset = unprivileged_dataset.subset(f_unpriv_indices)
-    uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
-    uf_priv_dataset = privileged_dataset.subset(uf_priv_indices)
-    f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
-    f_priv_dataset = privileged_dataset.subset(f_priv_indices)
-    
-    results["test_0_0"] = calculate_accuracy(mod_orig, uf_unpriv_dataset)
-    results["test_1_0"] = calculate_accuracy(mod_orig, uf_priv_dataset)
-    results["test_0_1"] = calculate_accuracy(mod_orig, f_unpriv_dataset)
-    results["test_1_1"] = calculate_accuracy(mod_orig, f_priv_dataset)
-    
-    # Print accuracies as a table
-    print("Accuracies:")
-    print("-" * 50)
-    print(f"{'Group':<15}{'Train Accuracy':<20}{'Test Accuracy':<20}")
-    print("-" * 50)
-    print(f"{'0_-':<15}{results['train_0_0']:<20.4f}{results['test_0_0']:<20.4f}")
-    print(f"{'1_-':<15}{results['train_1_0']:<20.4f}{results['test_1_0']:<20.4f}")
-    print(f"{'0_+':<15}{results['train_0_1']:<20.4f}{results['test_0_1']:<20.4f}")
-    print(f"{'1_+':<15}{results['train_1_1']:<20.4f}{results['test_1_1']:<20.4f}")
-    print("-" * 50)
-    
-    return results
-
-def get_egr_model_metrics(dataset_orig_train, dataset_orig_test, unprivileged_groups, f_label, uf_label, egr_mod, SCALER):
-    results = {}
-    # indices of examples in the unprivileged and privileged groups
-    indices, priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
-
-    # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
-    unprivileged_dataset = dataset_orig_train.subset(indices) # unprivileaged
-    privileged_dataset = dataset_orig_train.subset(priv_indices) # privilegaed
-    
-    # subgroups
-    uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
-    uf_unpriv_dataset = unprivileged_dataset.subset(uf_unpriv_indices)
-    f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
-    f_unpriv_dataset = unprivileged_dataset.subset(f_unpriv_indices)
-    uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
-    uf_priv_dataset = privileged_dataset.subset(uf_priv_indices)
-    f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
-    f_priv_dataset = privileged_dataset.subset(f_priv_indices)
-    
-    results["train_0_0"] = calculate_accuracy(egr_mod, uf_unpriv_dataset)
-    results["train_0_1"] = calculate_accuracy(egr_mod, f_unpriv_dataset)
-    results["train_1_0"] = calculate_accuracy(egr_mod, uf_priv_dataset)
-    results["train_1_1"] = calculate_accuracy(egr_mod, f_priv_dataset)
-    
-    # TESTING ACCURACIES
-    # indices of examples in the unprivileged and privileged groups
-    indices, priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
-
-    # subset: unprivileged--unprivileged_dataset and privileged--privileged_dataset 
-    unprivileged_dataset = dataset_orig_test.subset(indices) # unprivileaged
-    privileged_dataset = dataset_orig_test.subset(priv_indices) # privilegaed
-    
-    # subgroups
-    uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
-    uf_unpriv_dataset = unprivileged_dataset.subset(uf_unpriv_indices)
-    f_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
-    f_unpriv_dataset = unprivileged_dataset.subset(f_unpriv_indices)
-    uf_priv_indices = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
-    uf_priv_dataset = privileged_dataset.subset(uf_priv_indices)
-    f_priv_indices = np.where(privileged_dataset.labels.ravel() == f_label)[0]
-    f_priv_dataset = privileged_dataset.subset(f_priv_indices)
-    
-    results["test_0_0"] = calculate_accuracy(egr_mod, uf_unpriv_dataset)
-    results["test_0_1"] = calculate_accuracy(egr_mod, f_unpriv_dataset)
-    results["test_1_0"] = calculate_accuracy(egr_mod, uf_priv_dataset)
-    results["test_1_1"] = calculate_accuracy(egr_mod, f_priv_dataset)
-    
-    return results

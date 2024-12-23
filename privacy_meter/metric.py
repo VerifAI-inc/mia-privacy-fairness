@@ -90,7 +90,7 @@ class Metric(ABC):
 
         signals = []
         
-        print("INFO SOURCE MAPPING OBJ FOR SIGNAL: ", mapping_obj)
+        # print("INFO SOURCE MAPPING OBJ FOR SIGNAL: ", mapping_obj)
 
         if os.path.isfile(f"{signal_filepath}{NPZ_EXTENSION}"):
             with np.load(
@@ -136,7 +136,7 @@ class Metric(ABC):
         else:
             raise NotImplementedError
 
-        print("INFO SOURCE MAPPING OBJ FOR GROUP: ", mapping_obj)
+        # print("INFO SOURCE MAPPING OBJ FOR GROUP: ", mapping_obj)
 
         group_membership = info_source_obj.get_signal(GroupInfo(), mapping_obj)
 

@@ -81,8 +81,8 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         pos_ind = unique_labels.index(dataset.favorable_label)
         neg_ind = unique_labels.index(dataset.unfavorable_label)
     
-    print("POS IND", pos_ind)
-    print("NEG IND", neg_ind)
+    # print("POS IND", pos_ind)
+    # print("NEG IND", neg_ind)
 
     if metric_arrs is None:
         metric_arrs = defaultdict(list)
@@ -214,38 +214,6 @@ def describe_metrics(metrics, thresh_arr, TEST=True):
     # print("Corresponding false negative_rate for privileged: {:6.4f}".format(metrics['priv_fnr'][best_ind]))
     # print("Corresponding false positive_rate for unpribileged: {:6.4f}".format(metrics['unpriv_fpr'][best_ind]))
     # print("Corresponding false negative_rate for unprivileged: {:6.4f}".format(metrics['unpriv_fnr'][best_ind]))
-    
-def calculate_accuracy(model, dataset):
-    if "ModelToAttack" in str(type(model)):
-        model.eval()
-        x = torch.Tensor(dataset.features)
-        device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "cpu"
-        )
-        with torch.no_grad():
-            x = x.to(device)
-            pred = model(x)
-            y_val_pred_prob = torch.softmax(pred, dim=1)
-            y_pred = y_val_pred_prob.max(1).indices
-        y_true = dataset.labels.ravel()
-        print("Classification report for train: ")
-        print(classification_report(y_true, y_pred))
-
-        return sum(y_pred.numpy() == y_true)/len(y_pred)
-
-    else:
-        X = pd.DataFrame(
-                dataset.features, columns=dataset.feature_names
-            )         
-        
-        y_pred = model.predict(X)
-        y_true = dataset.labels.ravel()
-        print("Classification report for train: ")
-        print(classification_report(y_true, y_pred))
-        
-        return sum(y_pred == y_true)/len(y_pred)
 
 def get_info_sources(target_dataset, reference_dataset, model):
     target_info_source = InformationSource(
@@ -284,11 +252,11 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']
     
-    print("####Train metrics:")
-    print("Train accuracy: ", calculate_accuracy(mitigator, dataset))
+    # print("####Train metrics:")
+    # print("Train accuracy: ", calculate_accuracy(dataset))
         
     # find the best threshold for balanced accuracy
-    print('Validating EG ...')
+    # print('Validating EG ...')
     
     if SCALER:
         scale_orig = StandardScaler()
@@ -311,7 +279,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
         orig_best_ind = np.argmax(val_metrics['bal_acc'])
         
         # for debugging
-        print("Best thresh: ", thresh_arr[orig_best_ind])
+        # print("Best thresh: ", thresh_arr[orig_best_ind])
 
         disp_imp = np.array(val_metrics['disp_imp'])
         disp_imp_err = 1 - np.minimum(disp_imp, 1/disp_imp)
@@ -357,6 +325,8 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
         mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
         mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
+        
+    test_metrics = append_accuracies_to_metrics(test_metrics, dataset, dataset_orig_test, mitigator, f_label, uf_label, unprivileged_groups)
 
     return test_metrics, mia_metrics
 
@@ -379,11 +349,11 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']
     
-    print("Train metrics:")
-    print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
+    # print("Train metrics:")
+    # print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
     
-    # find the best threshold for balanced accuracy
-    print('Validating Syn OR Rew ...')
+    # # find the best threshold for balanced accuracy
+    # print('Validating Syn OR Rew ...')
     if SCALER:
         scale_orig = StandardScaler()
         dataset_orig_val_pred = dataset_orig_val.copy(deepcopy=True)
@@ -449,144 +419,10 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
         mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
         mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
+        
+    test_metrics = append_accuracies_to_metrics(test_metrics, dataset, dataset_orig_test, mod_orig, f_label, uf_label, unprivileged_groups)
 
     return test_metrics, mia_metrics
-
-def print_cpp_accuracies(dataset_orig_train, dataset_orig_test, 
-                         train_pred_cpp, test_pred_cpp, 
-                         unprivileged_groups, f_label, uf_label):
-    """
-    Print accuracies and confusion matrices for different subgroups 
-    before and after post-processing using scores to derive predicted labels.
-    """
-
-    def calculate_subset_metrics(dataset, predictions):
-        # Derive predicted labels from predictions.scores using a threshold
-        threshold = 0.5
-        if predictions.scores.ndim == 2 and predictions.scores.shape[1] == 2:
-            pred_prob = predictions.scores[:, 1]
-        else:
-            pred_prob = predictions.scores.ravel()
-
-        pred_labels = np.where(pred_prob >= threshold, 
-                               predictions.favorable_label, 
-                               predictions.unfavorable_label).reshape(-1, 1)
-
-        # Ensure shapes match
-        assert dataset.labels.shape[0] == pred_labels.shape[0], \
-            f"Mismatch in shapes: dataset={dataset.labels.shape}, pred={pred_labels.shape}"
-
-        # Calculate accuracy
-        accuracy = np.mean(dataset.labels.ravel() == pred_labels.ravel())
-        
-        # Calculate confusion matrix
-        cm = confusion_matrix(dataset.labels.ravel(), pred_labels.ravel(), 
-                              labels=[predictions.unfavorable_label, predictions.favorable_label])
-        tn, fp, fn, tp = cm.ravel()
-        confusion_dict = {
-            "True Positives (TP)": tp,
-            "False Positives (FP)": fp,
-            "True Negatives (TN)": tn,
-            "False Negatives (FN)": fn
-        }
-
-        return accuracy, confusion_dict
-
-    # Group indices
-    def group_indices(dataset, unprivileged_groups):
-        cond_unpriv = np.ones(len(dataset.labels), dtype=bool)
-        for grp in unprivileged_groups:
-            for attr, val in grp.items():
-                col_idx = dataset.protected_attribute_names.index(attr)
-                cond_unpriv &= (dataset.protected_attributes[:, col_idx] == val)
-        unpriv_indices = np.where(cond_unpriv)[0]
-        priv_indices = np.setdiff1d(np.arange(len(dataset.labels)), unpriv_indices)
-        return unpriv_indices, priv_indices
-
-    train_indices, train_priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
-    test_indices, test_priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
-
-    def create_subsets(dataset, indices, priv_indices, f_label, uf_label):
-        unprivileged_dataset = dataset.subset(indices)
-        privileged_dataset = dataset.subset(priv_indices)
-
-        uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
-        f_unpriv_indices  = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
-        uf_priv_indices   = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
-        f_priv_indices    = np.where(privileged_dataset.labels.ravel() == f_label)[0]
-
-        return (
-            unprivileged_dataset.subset(uf_unpriv_indices),
-            unprivileged_dataset.subset(f_unpriv_indices),
-            privileged_dataset.subset(uf_priv_indices),
-            privileged_dataset.subset(f_priv_indices),
-            uf_unpriv_indices, f_unpriv_indices, uf_priv_indices, f_priv_indices
-        )
-
-    # Create subsets and indices
-    train_subsets = create_subsets(dataset_orig_train, train_indices, train_priv_indices, f_label, uf_label)
-    test_subsets = create_subsets(dataset_orig_test, test_indices, test_priv_indices, f_label, uf_label)
-
-    train_results = {}
-    test_results = {}
-
-    # Compute metrics for train subsets
-    for subset_name, subset_data, pred_data in zip(
-        ["UF Unpriv", "F Unpriv", "UF Priv", "F Priv"],
-        train_subsets[:4],
-        [train_pred_cpp.subset(idx) for idx in train_subsets[4:]]
-    ):
-        acc, cm = calculate_subset_metrics(subset_data, pred_data)
-        train_results[subset_name] = {"Accuracy": acc, "Confusion Matrix": cm}
-
-    # Compute metrics for test subsets
-    for subset_name, subset_data, pred_data in zip(
-        ["UF Unpriv", "F Unpriv", "UF Priv", "F Priv"],
-        test_subsets[:4],
-        [test_pred_cpp.subset(idx) for idx in test_subsets[4:]]
-    ):
-        acc, cm = calculate_subset_metrics(subset_data, pred_data)
-        test_results[subset_name] = {"Accuracy": acc, "Confusion Matrix": cm}
-
-    # Print results
-    print("Accuracies and Confusion Matrices:")
-    print("-" * 70)
-    for group, data in train_results.items():
-        print(f"Train - {group}: Accuracy={data['Accuracy']:.4f}")
-        print(f"Confusion Matrix: {data['Confusion Matrix']}")
-    print("-" * 70)
-    for group, data in test_results.items():
-        print(f"Test - {group}: Accuracy={data['Accuracy']:.4f}")
-        print(f"Confusion Matrix: {data['Confusion Matrix']}")
-    print("-" * 70)
-
-    return train_results, test_results
-
-# Placeholder scores (before and after mitigation) for demonstration purposes
-np.random.seed(42)
-scores_before = {
-    "Train": np.random.uniform(0, 1, 100),
-    "Validation": np.random.uniform(0, 1, 100),
-    "Test": np.random.uniform(0, 1, 100)
-}
-
-scores_after = {
-    "Train": np.clip(scores_before["Train"] + np.random.normal(0, 0.05, 100), 0, 1),
-    "Validation": np.clip(scores_before["Validation"] + np.random.normal(0, 0.05, 100), 0, 1),
-    "Test": np.clip(scores_before["Test"] + np.random.normal(0, 0.05, 100), 0, 1)
-}
-
-# Function to plot scores before and after mitigation
-def plot_scores_comparison(dataset_name, scores_before, scores_after):
-    plt.figure(figsize=(10, 6))
-    plt.hist(scores_before, bins=20, alpha=0.7, label=f'{dataset_name} - Before CPP', density=True)
-    plt.hist(scores_after, bins=20, alpha=0.7, label=f'{dataset_name} - After CPP', density=True)
-    plt.title(f"Distribution of .scores for {dataset_name} Dataset")
-    plt.xlabel("Score")
-    plt.ylabel("Density")
-    plt.legend()
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.show()
 
 def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
@@ -620,12 +456,6 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
     dataset_orig_valid_pred.scores = y_valid_pred_prob.reshape(-1,1)
     dataset_orig_test_pred.scores = y_test_pred_prob.reshape(-1,1)
     
-    # Keep scores for visualization
-    scores_before = {
-        'Train': dataset_orig_train_pred.scores.ravel(),
-        'Test': dataset_orig_test_pred.scores.ravel()
-    }
-    
     y_train_pred = np.zeros_like(dataset_orig_train_pred.labels)
     y_train_pred[y_train_pred_prob >= class_thresh] = dataset_orig_train_pred.favorable_label
     y_train_pred[~(y_train_pred_prob >= class_thresh)] = dataset_orig_train_pred.unfavorable_label
@@ -652,56 +482,6 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
     train_pred_cpp = cpp.predict(dataset_orig_train_pred)
     test_pred_cpp = cpp.predict(dataset_orig_test_pred)
     
-    # Keep scores for visualization
-    scores_after = {
-        'Train': train_pred_cpp.scores.ravel(),
-        'Test': test_pred_cpp.scores.ravel()
-    }
-    
-    # Calculate the mean score difference for train and test datasets
-    mean_score_difference_train = np.mean(scores_after['Train'] - scores_before['Train'])
-    mean_score_difference_test = np.mean(scores_after['Test'] - scores_before['Test'])
-
-    # Prepare data for the first 5 instances for train and test datasets
-    first_5_train = {
-        "Index": range(1, 6),
-        "Score Before CPP (Train)": scores_before['Train'][:5],
-        "Score After CPP (Train)": scores_after['Train'][:5],
-        "Change in Score (Train)": (scores_after['Train'][:5] - scores_before['Train'][:5])
-    }
-
-    first_5_test = {
-        "Index": range(1, 6),
-        "Score Before CPP (Test)": scores_before['Test'][:5],
-        "Score After CPP (Test)": scores_after['Test'][:5],
-        "Change in Score (Test)": (scores_after['Test'][:5] - scores_before['Test'][:5])
-    }
-
-    # Create DataFrames for structured visualization
-    first_5_train_df = pd.DataFrame(first_5_train)
-    first_5_test_df = pd.DataFrame(first_5_test)
-
-    # Print first 5 instances and mean score differences
-    print("First 5 Instances - Train Scores:")
-    print(first_5_train_df)
-    print("\nFirst 5 Instances - Test Scores:")
-    print(first_5_test_df)
-    print("\nMean Score Differences:")
-    print(f"Train: {mean_score_difference_train:.4f}")
-    print(f"Test: {mean_score_difference_test:.4f}")
-
-    # Plot for Train and Test datasets
-    # plot_scores_comparison("Train", scores_before["Train"], scores_after["Train"])
-    # plot_scores_comparison("Test", scores_before["Test"], scores_after["Test"])
-
-    # Print accuracies
-    train_results, test_results = print_cpp_accuracies(
-        dataset_orig_train, dataset_orig_test, 
-        train_pred_cpp, test_pred_cpp,
-        unprivileged_groups, 
-        f_label, uf_label
-    )
-    
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
         # Runnning MIA attack based on subgroups
@@ -712,11 +492,11 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']
     
-    print("####Train metrics:")
-    print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
+    # print("####Train metrics:")
+    # print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
         
-    # find the best threshold for balanced accuracy
-    print('Validating Original ...')
+    # # find the best threshold for balanced accuracy
+    # print('Validating Original ...')
     
     if SCALER:
         scale_orig = StandardScaler()
@@ -784,6 +564,8 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
         mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
         mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
+    
+    test_metrics = print_cpp_accuracies(test_metrics, dataset, dataset_orig_test, train_pred_cpp, test_pred_cpp, unprivileged_groups, f_label, uf_label)
 
     return test_metrics, mia_metrics
 
@@ -805,11 +587,11 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
         _, _, _, pop_metrics, results = run_mia2_attack(target_info_source, reference_info_source, log_type)
         thresh_arr = pop_metrics['thresholds']
     
-    print("####Train metrics:")
-    print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
+    # print("####Train metrics:")
+    # print("Train accuracy: ", calculate_accuracy(mod_orig, dataset))
         
-    # find the best threshold for balanced accuracy
-    print('Validating Original ...')
+    # # find the best threshold for balanced accuracy
+    # print('Validating Original ...')
     
     if SCALER:
         scale_orig = StandardScaler()
@@ -878,5 +660,154 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
         mia_metrics[f"{results[i].get_name()}_mia_ppv"].append(results[i].get_ppv())
         mia_metrics[f"{results[i].get_name()}_mia_attacker_advantage"].append(results[i].get_attacker_advantage())
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
+        
+    test_metrics = append_accuracies_to_metrics(test_metrics, dataset, dataset_orig_test, mod_orig, f_label, uf_label, unprivileged_groups)
 
     return test_metrics, mia_metrics
+
+def calculate_accuracy(dataset, model):
+    X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
+    y_pred = model.predict(X)
+    y_true = dataset.labels.ravel()
+    accuracy = sum(y_pred == y_true) / len(y_pred)
+    return accuracy
+
+def print_cpp_accuracies(test_metrics, dataset_orig_train, dataset_orig_test, 
+                         train_pred_cpp, test_pred_cpp, 
+                         unprivileged_groups, f_label, uf_label):
+
+    def calculate_subset_metrics(dataset, predictions):
+        # Derive predicted labels from predictions.scores using a threshold
+        threshold = 0.5
+        if predictions.scores.ndim == 2 and predictions.scores.shape[1] == 2:
+            pred_prob = predictions.scores[:, 1]
+        else:
+            pred_prob = predictions.scores.ravel()
+
+        pred_labels = np.where(pred_prob >= threshold, 
+                               predictions.favorable_label, 
+                               predictions.unfavorable_label).reshape(-1, 1)
+
+        # Ensure shapes match
+        assert dataset.labels.shape[0] == pred_labels.shape[0], \
+            f"Mismatch in shapes: dataset={dataset.labels.shape}, pred={pred_labels.shape}"
+
+        # Calculate accuracy
+        accuracy = np.mean(dataset.labels.ravel() == pred_labels.ravel())
+        return accuracy
+
+    def calculate_overall_accuracy(dataset, predictions):
+        # Derive predicted labels and calculate overall accuracy
+        threshold = 0.5
+        pred_labels = np.where(predictions.scores.ravel() >= threshold, 
+                               predictions.favorable_label, 
+                               predictions.unfavorable_label).reshape(-1, 1)
+        return np.mean(dataset.labels.ravel() == pred_labels.ravel())
+
+    # Compute overall train/test accuracies
+    overall_train_accuracy = calculate_overall_accuracy(dataset_orig_train, train_pred_cpp)
+    overall_test_accuracy = calculate_overall_accuracy(dataset_orig_test, test_pred_cpp)
+
+    # Append to test_metrics
+    test_metrics["accuracy_train_overall"].append(overall_train_accuracy)
+    test_metrics["accuracy_test_overall"].append(overall_test_accuracy)
+
+    # Subpopulation metrics
+    train_indices, train_priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
+    test_indices, test_priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
+
+    def create_subsets(dataset, indices, priv_indices, f_label, uf_label):
+        unprivileged_dataset = dataset.subset(indices)
+        privileged_dataset = dataset.subset(priv_indices)
+
+        uf_unpriv_indices = np.where(unprivileged_dataset.labels.ravel() == uf_label)[0]
+        f_unpriv_indices  = np.where(unprivileged_dataset.labels.ravel() == f_label)[0]
+        uf_priv_indices   = np.where(privileged_dataset.labels.ravel() == uf_label)[0]
+        f_priv_indices    = np.where(privileged_dataset.labels.ravel() == f_label)[0]
+
+        return (
+            unprivileged_dataset.subset(uf_unpriv_indices),
+            unprivileged_dataset.subset(f_unpriv_indices),
+            privileged_dataset.subset(uf_priv_indices),
+            privileged_dataset.subset(f_priv_indices),
+            uf_unpriv_indices, f_unpriv_indices, uf_priv_indices, f_priv_indices
+        )
+
+    # Create subsets and indices
+    train_subsets = create_subsets(dataset_orig_train, train_indices, train_priv_indices, f_label, uf_label)
+    test_subsets = create_subsets(dataset_orig_test, test_indices, test_priv_indices, f_label, uf_label)
+
+    # Compute metrics for train subsets
+    for subset_name, subset_data, pred_data in zip(
+        ["accuracy_train_0_-", "accuracy_train_0_+", "accuracy_train_1_-", "accuracy_train_1_+"],
+        train_subsets[:4],
+        [train_pred_cpp.subset(idx) for idx in train_subsets[4:]]
+    ):
+        acc = calculate_subset_metrics(subset_data, pred_data)
+        test_metrics[subset_name].append(acc)
+
+    # Compute metrics for test subsets
+    for subset_name, subset_data, pred_data in zip(
+        ["accuracy_test_0_-", "accuracy_test_0_+", "accuracy_test_1_-", "accuracy_test_1_+"],
+        test_subsets[:4],
+        [test_pred_cpp.subset(idx) for idx in test_subsets[4:]]
+    ):
+        acc = calculate_subset_metrics(subset_data, pred_data)
+        test_metrics[subset_name].append(acc)
+
+    return test_metrics
+
+def append_accuracies_to_metrics(test_metrics, train_dataset, test_dataset, model, f_label, uf_label, unprivileged_groups):
+    """
+    Calculate and append train/test accuracies (overall and subgroup-specific) to the test_metrics dictionary.
+
+    Args:
+        test_metrics (dict): The dictionary to append accuracy metrics.
+        train_dataset (BinaryLabelDataset): The training dataset.
+        test_dataset (BinaryLabelDataset): The testing dataset.
+        model (object): The model used for predictions.
+        log_type (str): The log type indicating the mitigator (e.g., 'un_log', 'syn_log', etc.).
+        f_label (int): Favorable label.
+        uf_label (int): Unfavorable label.
+        unprivileged_groups (list): List of unprivileged group definitions.
+
+    Returns:
+        dict: Updated test_metrics dictionary with added accuracy metrics.
+    """
+    def calculate_subset_accuracies(dataset, indices, f_label, uf_label):
+        unpriv_indices, priv_indices = indices
+
+        # Subgroups
+        unpriv_uf = np.where(dataset.labels[unpriv_indices].ravel() == uf_label)[0]
+        unpriv_f = np.where(dataset.labels[unpriv_indices].ravel() == f_label)[0]
+        priv_uf = np.where(dataset.labels[priv_indices].ravel() == uf_label)[0]
+        priv_f = np.where(dataset.labels[priv_indices].ravel() == f_label)[0]
+
+        return {
+            "0_-": len(unpriv_uf) / len(unpriv_indices) if len(unpriv_indices) > 0 else 0,
+            "0_+": len(unpriv_f) / len(unpriv_indices) if len(unpriv_indices) > 0 else 0,
+            "1_-": len(priv_uf) / len(priv_indices) if len(priv_indices) > 0 else 0,
+            "1_+": len(priv_f) / len(priv_indices) if len(priv_indices) > 0 else 0,
+        }
+
+    # Calculate overall accuracies
+    train_accuracy = calculate_accuracy(train_dataset, model)
+    test_accuracy = calculate_accuracy(test_dataset, model)
+
+    # Group indices for subpopulation metrics
+    train_indices = group_indices(train_dataset, unprivileged_groups)
+    test_indices = group_indices(test_dataset, unprivileged_groups)
+
+    train_subgroup_accuracies = calculate_subset_accuracies(train_dataset, train_indices, f_label, uf_label)
+    test_subgroup_accuracies = calculate_subset_accuracies(test_dataset, test_indices, f_label, uf_label)
+
+    # Append results to test_metrics
+    test_metrics[f"accuracy_train"].append(train_accuracy)
+    test_metrics[f"accuracy_test"].append(test_accuracy)
+
+    for subgroup, accuracy in train_subgroup_accuracies.items():
+        test_metrics[f"accuracy_train_{subgroup}"].append(accuracy)
+    for subgroup, accuracy in test_subgroup_accuracies.items():
+        test_metrics[f"accuracy_test_{subgroup}"].append(accuracy)
+
+    return test_metrics

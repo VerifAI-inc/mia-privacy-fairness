@@ -936,7 +936,7 @@ class PPModel(Model):
         
         loss = self.loss_fn(batch_labels, logits)
         
-        print("LOSS: ", loss[:5])
+        # print("LOSS: ", loss[:5])
 
         return loss
 

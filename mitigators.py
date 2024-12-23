@@ -175,7 +175,6 @@ class DIRMitigator(BaseMitigator):
                       sensitive_attribute, model_type, dir_metrics, dir_mia_metrics,
                       f_label, uf_label, unprivileged_groups, privileged_groups,
                       ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
-
         # Initialize the DisparateImpactRemover
         DIR = DisparateImpactRemover(sensitive_attribute=sensitive_attribute)
 

@@ -89,6 +89,8 @@ class Metric(ABC):
             raise NotImplementedError
 
         signals = []
+        
+        print("INFO SOURCE MAPPING OBJ FOR SIGNAL: ", mapping_obj)
 
         if os.path.isfile(f"{signal_filepath}{NPZ_EXTENSION}"):
             with np.load(
@@ -133,6 +135,8 @@ class Metric(ABC):
             mapping_obj = self.reference_model_to_test_split_mapping_group
         else:
             raise NotImplementedError
+
+        print("INFO SOURCE MAPPING OBJ FOR GROUP: ", mapping_obj)
 
         group_membership = info_source_obj.get_signal(GroupInfo(), mapping_obj)
 

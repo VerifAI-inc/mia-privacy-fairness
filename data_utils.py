@@ -303,8 +303,8 @@ class DatasetBuilder:
 
         elif self.DATASET == 'grade':
             #load dataset and print shape
-            dataset_loc = "./student/student-por.csv"
-            df = pd.read_csv(dataset_loc, sep=";")
+            dataset_loc = "./data/student-por.csv"
+            df = pd.read_csv(dataset_loc, sep=",")
             print('Dataset consists of {} Observations and {} Variables'.format(df.shape[0],df.shape[1]))
             df.drop(['G1', 'G2'], inplace=True, axis=1)
             features = ['school', 'sex', 'age', 'address', 'famsize', 'Pstatus', 'Medu', 'Fedu',

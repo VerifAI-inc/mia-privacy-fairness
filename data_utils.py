@@ -177,30 +177,29 @@ class DatasetBuilder:
                 protected_attribute_names=['race']  # The protected attribute (e.g., black race)
             )
             
-        elif self.DATASET == 'compas':
-            protected_attribute_used = 1
+        elif self.DATASET == 'compas_race':
+            self.privileged_groups = [{'race': 1}]
+            self.unprivileged_groups = [{'race': 0}]
+            
+            df = pd.read_csv("./data/compas_preprocessed_final.csv")
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  
+                unfavorable_label=0,  
+                df=df,
+                label_names=['two_year_recid'], 
+                protected_attribute_names=['race'])
 
-            if protected_attribute_used == 0:
-              self.privileged_groups = [{'race': 1}]
-              self.unprivileged_groups = [{'race': 0}]
-              df = pd.read_csv("./data/compas_preprocessed_final.csv")
-              dataset = BinaryLabelDataset(
-                  favorable_label=1,  
-                  unfavorable_label=0,  
-                  df=df,
-                  label_names=['two_year_recid'], 
-                  protected_attribute_names=['race'])
-
-            else:
-              self.privileged_groups = [{'sex': 1}]
-              self.unprivileged_groups = [{'sex': 0}]
-              df = pd.read_csv("./data/compas_preprocessed_final.csv")
-              dataset = BinaryLabelDataset(
-                  favorable_label=1,  
-                  unfavorable_label=0,  
-                  df=df,
-                  label_names=['two_year_recid'], 
-                  protected_attribute_names=['sex']  
+        elif self.DATASET == 'compas_sex':
+            self.privileged_groups = [{'sex': 1}]
+            self.unprivileged_groups = [{'sex': 0}]
+            
+            df = pd.read_csv("./data/compas_preprocessed_final.csv")
+            dataset = BinaryLabelDataset(
+                favorable_label=1,  
+                unfavorable_label=0,  
+                df=df,
+                label_names=['two_year_recid'], 
+                protected_attribute_names=['sex']  
             )
 
         elif self.DATASET == 'german_age':
@@ -291,6 +290,16 @@ class DatasetBuilder:
                     custom_preprocessing=default_preprocessing,
                     metadata=default_mappings
                 )
+        
+        elif self.DATASET == 'adult_race':
+            self.privileged_groups = [{'race': 1}]
+            self.unprivileged_groups = [{'race': 0}]
+            dataset = load_preproc_data_adult(['race'])
+            
+        elif self.DATASET == "adult_sex":
+            self.privileged_groups = [{'sex': 1}]
+            self.unprivileged_groups = [{'sex': 0}]
+            dataset = load_preproc_data_adult(['sex'])
 
         elif self.DATASET == 'grade':
             #load dataset and print shape
@@ -378,10 +387,7 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     sample_features = np.concatenate((f_dataset.features, inflated_uf_features))
     inflated_uf_labels = np.repeat(uf_dataset.labels, inflate_rate, axis=0)
     sample_labels = np.concatenate((f_dataset.labels, inflated_uf_labels))
-    print(f"Size of favorable dataset: {f_dataset.features.shape[0]}")
-    print(f"Size of inflated unfavorable dataset: {inflated_uf_features.shape[0]}")
-    print(f"Sample features size: ", sample_features.shape[0])
-    print(f"Sample labels size: ", sample_labels.shape[0])
+    
 
     # oversampling favorable samples
     # X: inflated dataset with synthetic samples of f_label attached to the end
@@ -400,14 +406,6 @@ def balance(dataset, n_extra, inflate_rate, f_label, uf_label):
     X = X[:selected, :]
     y = y[:selected]
     y = y.reshape(-1,1)
-    
-    # print(f"Type of instance_weights: {type(f_dataset.instance_weights)}")
-    # print(f"Shape of instance_weights: {getattr(f_dataset.instance_weights, 'shape', 'N/A')}")
-    # print(f"Content of instance_weights: {f_dataset.instance_weights}")
-
-    # print(f"Type of protected_attributes: {type(f_dataset.protected_attributes)}")
-    # print(f"Shape of protected_attributes: {getattr(f_dataset.protected_attributes, 'shape', 'N/A')}")
-    # print(f"Content of protected_attributes: {f_dataset.protected_attributes}")
 
     # Convert to lists if necessary
     instance_weights_list = f_dataset.instance_weights.flatten().tolist() if isinstance(f_dataset.instance_weights, np.ndarray) else f_dataset.instance_weights

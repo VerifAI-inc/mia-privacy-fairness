@@ -672,49 +672,108 @@ def calculate_accuracy(dataset, model):
     accuracy = sum(y_pred == y_true) / len(y_pred)
     return accuracy
 
+def append_accuracies_to_metrics(test_metrics, train_dataset, test_dataset, model, f_label, uf_label, unprivileged_groups):
+    """
+    Calculate and append train/test accuracies (overall and subgroup-specific) to the test_metrics dictionary.
+
+    Args:
+        test_metrics (dict): The dictionary to append accuracy metrics.
+        train_dataset (BinaryLabelDataset): The training dataset.
+        test_dataset (BinaryLabelDataset): The testing dataset.
+        model (object): The model used for predictions.
+        log_type (str): The log type indicating the mitigator (e.g., 'un_log', 'syn_log', etc.).
+        f_label (int): Favorable label.
+        uf_label (int): Unfavorable label.
+        unprivileged_groups (list): List of unprivileged group definitions.
+
+    Returns:
+        dict: Updated test_metrics dictionary with added accuracy metrics.
+    """
+    def calculate_subset_accuracies(dataset, indices, f_label, uf_label, model):
+        unpriv_indices, priv_indices = indices
+        
+        unpriv_indices = np.array(unpriv_indices)
+        priv_indices = np.array(priv_indices)
+
+        # Subgroups within unprivileged and privileged groups
+        unpriv_uf_indices = unpriv_indices[np.where(dataset.labels[unpriv_indices].ravel() == uf_label)[0]]
+        unpriv_f_indices = unpriv_indices[np.where(dataset.labels[unpriv_indices].ravel() == f_label)[0]]
+        priv_uf_indices = priv_indices[np.where(dataset.labels[priv_indices].ravel() == uf_label)[0]]
+        priv_f_indices = priv_indices[np.where(dataset.labels[priv_indices].ravel() == f_label)[0]]
+        
+        unpriv_uf_df = pd.DataFrame(dataset.features[unpriv_uf_indices], columns=dataset.feature_names)
+        unpriv_f_df = pd.DataFrame(dataset.features[unpriv_f_indices], columns=dataset.feature_names)
+        priv_uf_df = pd.DataFrame(dataset.features[priv_uf_indices], columns=dataset.feature_names)
+        priv_f_df = pd.DataFrame(dataset.features[priv_f_indices], columns=dataset.feature_names)
+    
+         # Predictions
+        unpriv_uf_preds = model.predict(unpriv_uf_df)
+        unpriv_f_preds = model.predict(unpriv_f_df)
+        priv_uf_preds = model.predict(priv_uf_df)
+        priv_f_preds = model.predict(priv_f_df)
+
+        # Accuracy calculations
+        return {
+            "0_-": sum(unpriv_uf_preds == dataset.labels[unpriv_uf_indices].ravel()) / len(unpriv_uf_preds),
+            "0_+": sum(unpriv_f_preds == dataset.labels[unpriv_f_indices].ravel()) / len(unpriv_f_preds),
+            "1_-": sum(priv_uf_preds == dataset.labels[priv_uf_indices].ravel()) / len(priv_uf_preds),
+            "1_+": sum(priv_f_preds == dataset.labels[priv_f_indices].ravel()) / len(priv_f_preds)
+        }
+
+    # Calculate overall accuracies
+    train_accuracy = calculate_accuracy(train_dataset, model)
+    test_accuracy = calculate_accuracy(test_dataset, model)
+
+    # Group indices for subpopulation metrics
+    train_indices = group_indices(train_dataset, unprivileged_groups)
+    test_indices = group_indices(test_dataset, unprivileged_groups)
+
+    train_subgroup_accuracies = calculate_subset_accuracies(train_dataset, train_indices, f_label, uf_label, model)
+    test_subgroup_accuracies = calculate_subset_accuracies(test_dataset, test_indices, f_label, uf_label, model)
+
+    # Append results to test_metrics
+    test_metrics[f"accuracy_train"].append(train_accuracy)
+    test_metrics[f"accuracy_test"].append(test_accuracy)
+
+    for subgroup, accuracy in train_subgroup_accuracies.items():
+        test_metrics[f"accuracy_train_{subgroup}"].append(accuracy)
+    for subgroup, accuracy in test_subgroup_accuracies.items():
+        test_metrics[f"accuracy_test_{subgroup}"].append(accuracy)
+
+    return test_metrics
+
+def calculate_accuracy(dataset, model):
+    X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
+    y_pred = model.predict(X)
+    y_true = dataset.labels.ravel()
+    accuracy = sum(y_pred == y_true) / len(y_pred)
+    return accuracy
+
 def print_cpp_accuracies(test_metrics, dataset_orig_train, dataset_orig_test, 
                          train_pred_cpp, test_pred_cpp, 
                          unprivileged_groups, f_label, uf_label):
-
-    def calculate_subset_metrics(dataset, predictions):
-        # Derive predicted labels from predictions.scores using a threshold
-        threshold = 0.5
-        if predictions.scores.ndim == 2 and predictions.scores.shape[1] == 2:
-            pred_prob = predictions.scores[:, 1]
-        else:
-            pred_prob = predictions.scores.ravel()
-
-        pred_labels = np.where(pred_prob >= threshold, 
-                               predictions.favorable_label, 
-                               predictions.unfavorable_label).reshape(-1, 1)
-
-        # Ensure shapes match
-        assert dataset.labels.shape[0] == pred_labels.shape[0], \
-            f"Mismatch in shapes: dataset={dataset.labels.shape}, pred={pred_labels.shape}"
-
-        # Calculate accuracy
-        accuracy = np.mean(dataset.labels.ravel() == pred_labels.ravel())
-        return accuracy
-
     def calculate_overall_accuracy(dataset, predictions):
-        # Derive predicted labels and calculate overall accuracy
+        # Derive predicted labels
         threshold = 0.5
         pred_labels = np.where(predictions.scores.ravel() >= threshold, 
                                predictions.favorable_label, 
                                predictions.unfavorable_label).reshape(-1, 1)
+        # Ensure shapes match
+        assert dataset.labels.shape[0] == pred_labels.shape[0], \
+            f"Mismatch in shapes: dataset={dataset.labels.shape}, pred={pred_labels.shape}"
         return np.mean(dataset.labels.ravel() == pred_labels.ravel())
 
-    # Compute overall train/test accuracies
-    overall_train_accuracy = calculate_overall_accuracy(dataset_orig_train, train_pred_cpp)
-    overall_test_accuracy = calculate_overall_accuracy(dataset_orig_test, test_pred_cpp)
-
-    # Append to test_metrics
-    test_metrics["accuracy_train_overall"].append(overall_train_accuracy)
-    test_metrics["accuracy_test_overall"].append(overall_test_accuracy)
-
-    # Subpopulation metrics
-    train_indices, train_priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
-    test_indices, test_priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
+    def calculate_subset_metrics(subset_dataset, subset_predictions):
+        # Derive predicted labels
+        threshold = 0.5
+        pred_prob = subset_predictions.scores.ravel()
+        pred_labels = np.where(pred_prob >= threshold, 
+                               subset_predictions.favorable_label, 
+                               subset_predictions.unfavorable_label).reshape(-1, 1)
+        # Ensure shapes match
+        assert subset_dataset.labels.shape[0] == pred_labels.shape[0], \
+            f"Mismatch in shapes: dataset={subset_dataset.labels.shape}, pred={pred_labels.shape}"
+        return np.mean(subset_dataset.labels.ravel() == pred_labels.ravel())
 
     def create_subsets(dataset, indices, priv_indices, f_label, uf_label):
         unprivileged_dataset = dataset.subset(indices)
@@ -733,81 +792,32 @@ def print_cpp_accuracies(test_metrics, dataset_orig_train, dataset_orig_test,
             uf_unpriv_indices, f_unpriv_indices, uf_priv_indices, f_priv_indices
         )
 
-    # Create subsets and indices
-    train_subsets = create_subsets(dataset_orig_train, train_indices, train_priv_indices, f_label, uf_label)
-    test_subsets = create_subsets(dataset_orig_test, test_indices, test_priv_indices, f_label, uf_label)
+    def create_and_compute_metrics(dataset, predictions, indices, priv_indices):
+        # Create subsets
+        subsets = create_subsets(dataset, indices, priv_indices, f_label, uf_label)
+        subset_results = {}
+        for subset_name, subset_data, pred_data in zip(
+            ["0_-", "0_+", "1_-", "1_+"],
+            subsets[:4],
+            [predictions.subset(idx) for idx in subsets[4:]]
+        ):
+            subset_results[f"{subset_name}"] = calculate_subset_metrics(subset_data, pred_data)
+        return subset_results
 
-    # Compute metrics for train subsets
-    for subset_name, subset_data, pred_data in zip(
-        ["accuracy_train_0_-", "accuracy_train_0_+", "accuracy_train_1_-", "accuracy_train_1_+"],
-        train_subsets[:4],
-        [train_pred_cpp.subset(idx) for idx in train_subsets[4:]]
-    ):
-        acc = calculate_subset_metrics(subset_data, pred_data)
-        test_metrics[subset_name].append(acc)
+    # Overall accuracies
+    test_metrics["accuracy_train"].append(calculate_overall_accuracy(dataset_orig_train, train_pred_cpp))
+    test_metrics["accuracy_test"].append(calculate_overall_accuracy(dataset_orig_test, test_pred_cpp))
 
-    # Compute metrics for test subsets
-    for subset_name, subset_data, pred_data in zip(
-        ["accuracy_test_0_-", "accuracy_test_0_+", "accuracy_test_1_-", "accuracy_test_1_+"],
-        test_subsets[:4],
-        [test_pred_cpp.subset(idx) for idx in test_subsets[4:]]
-    ):
-        acc = calculate_subset_metrics(subset_data, pred_data)
-        test_metrics[subset_name].append(acc)
+    # Subpopulation metrics for train and test datasets
+    train_indices, train_priv_indices = group_indices(dataset_orig_train, unprivileged_groups)
+    test_indices, test_priv_indices = group_indices(dataset_orig_test, unprivileged_groups)
 
-    return test_metrics
+    train_metrics = create_and_compute_metrics(dataset_orig_train, train_pred_cpp, train_indices, train_priv_indices)
+    for k, v in train_metrics.items():
+        test_metrics[f"accuracy_train_{k}"].append(v)
 
-def append_accuracies_to_metrics(test_metrics, train_dataset, test_dataset, model, f_label, uf_label, unprivileged_groups):
-    """
-    Calculate and append train/test accuracies (overall and subgroup-specific) to the test_metrics dictionary.
-
-    Args:
-        test_metrics (dict): The dictionary to append accuracy metrics.
-        train_dataset (BinaryLabelDataset): The training dataset.
-        test_dataset (BinaryLabelDataset): The testing dataset.
-        model (object): The model used for predictions.
-        log_type (str): The log type indicating the mitigator (e.g., 'un_log', 'syn_log', etc.).
-        f_label (int): Favorable label.
-        uf_label (int): Unfavorable label.
-        unprivileged_groups (list): List of unprivileged group definitions.
-
-    Returns:
-        dict: Updated test_metrics dictionary with added accuracy metrics.
-    """
-    def calculate_subset_accuracies(dataset, indices, f_label, uf_label):
-        unpriv_indices, priv_indices = indices
-
-        # Subgroups
-        unpriv_uf = np.where(dataset.labels[unpriv_indices].ravel() == uf_label)[0]
-        unpriv_f = np.where(dataset.labels[unpriv_indices].ravel() == f_label)[0]
-        priv_uf = np.where(dataset.labels[priv_indices].ravel() == uf_label)[0]
-        priv_f = np.where(dataset.labels[priv_indices].ravel() == f_label)[0]
-
-        return {
-            "0_-": len(unpriv_uf) / len(unpriv_indices) if len(unpriv_indices) > 0 else 0,
-            "0_+": len(unpriv_f) / len(unpriv_indices) if len(unpriv_indices) > 0 else 0,
-            "1_-": len(priv_uf) / len(priv_indices) if len(priv_indices) > 0 else 0,
-            "1_+": len(priv_f) / len(priv_indices) if len(priv_indices) > 0 else 0,
-        }
-
-    # Calculate overall accuracies
-    train_accuracy = calculate_accuracy(train_dataset, model)
-    test_accuracy = calculate_accuracy(test_dataset, model)
-
-    # Group indices for subpopulation metrics
-    train_indices = group_indices(train_dataset, unprivileged_groups)
-    test_indices = group_indices(test_dataset, unprivileged_groups)
-
-    train_subgroup_accuracies = calculate_subset_accuracies(train_dataset, train_indices, f_label, uf_label)
-    test_subgroup_accuracies = calculate_subset_accuracies(test_dataset, test_indices, f_label, uf_label)
-
-    # Append results to test_metrics
-    test_metrics[f"accuracy_train"].append(train_accuracy)
-    test_metrics[f"accuracy_test"].append(test_accuracy)
-
-    for subgroup, accuracy in train_subgroup_accuracies.items():
-        test_metrics[f"accuracy_train_{subgroup}"].append(accuracy)
-    for subgroup, accuracy in test_subgroup_accuracies.items():
-        test_metrics[f"accuracy_test_{subgroup}"].append(accuracy)
+    test_metrics_data = create_and_compute_metrics(dataset_orig_test, test_pred_cpp, test_indices, test_priv_indices)
+    for k, v in test_metrics_data.items():
+        test_metrics[f"accuracy_test_{k}"].append(v)
 
     return test_metrics

@@ -109,7 +109,6 @@ class DTModel(BaseModel):
         elif ATTACK == "mia2":
             model = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
             model.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
-
         return model
 
     def bare_model(self):

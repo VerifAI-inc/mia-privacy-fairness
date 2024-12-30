@@ -175,6 +175,7 @@ class DIRMitigator(BaseMitigator):
                       sensitive_attribute, model_type, dir_metrics, dir_mia_metrics,
                       f_label, uf_label, unprivileged_groups, privileged_groups,
                       ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
+
         # Initialize the DisparateImpactRemover
         DIR = DisparateImpactRemover(sensitive_attribute=sensitive_attribute)
 
@@ -668,7 +669,7 @@ class ROMitigator(BaseMitigator):
         describe_metrics(ro_orig_metrics, [best_class_thresh]) #[thresh_arr[pr_orig_best_ind]])
 
         return ro_orig_metrics
-
+    
 # Calibrated Equalized Odds (Post-Processing)
 class CPPMitigator(BaseMitigator):
     mitigator_type = 'CPP Mitigator'

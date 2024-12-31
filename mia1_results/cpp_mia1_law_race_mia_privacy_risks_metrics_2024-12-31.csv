@@ -1,0 +1,15 @@
+,Method,Metric,Mean Privacy Risk,Error
+0,orig,entire_dataset_mia_privacy_risk,0.5188070968362343,0.00039780034218431774
+1,orig,entire_dataset_label_0.0_mia_privacy_risk,0.6813081898416548,0.0010321484815738766
+2,orig,entire_dataset_label_1.0_mia_privacy_risk,0.512922565407793,0.00045655151009575874
+3,orig,subpopulation_0.0_label_0.0_mia_privacy_risk,0.6845734310523091,0.003472476323996997
+4,orig,subpopulation_0.0_label_1.0_mia_privacy_risk,0.511843277905561,0.00020094562535920987
+5,orig,subpopulation_1.0_label_0.0_mia_privacy_risk,0.6806645851917933,0.018052109898637907
+6,orig,subpopulation_1.0_label_1.0_mia_privacy_risk,0.5484381870220874,0.003652306748838228
+7,cpp,entire_dataset_mia_privacy_risk,0.5012525242811806,1.0751360599577497e-05
+8,cpp,entire_dataset_label_0.0_mia_privacy_risk,0.5043706195379425,0.0005760917541754418
+9,cpp,entire_dataset_label_1.0_mia_privacy_risk,0.5000632655127036,0.0002829319740737623
+10,cpp,subpopulation_0.0_label_0.0_mia_privacy_risk,0.5,0.0
+11,cpp,subpopulation_0.0_label_1.0_mia_privacy_risk,0.5,0.0
+12,cpp,subpopulation_1.0_label_0.0_mia_privacy_risk,0.5,0.0
+13,cpp,subpopulation_1.0_label_1.0_mia_privacy_risk,0.5,0.0

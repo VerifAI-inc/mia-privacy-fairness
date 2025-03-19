@@ -176,7 +176,7 @@ def run_mia_attack(privileged_groups, dataset_orig_train, dataset_orig_test, mod
         loss_test = log_losses(preds_test["label"], preds_test["1"])  
         
         # analyze_and_visualize_losses(loss_train, loss_test)
-    elif model_type == "dt_egr":
+    elif model_type == "dt_egr" or model_type == "mlp_egr":
         X_train = pd.DataFrame(
             dataset_orig_train.features, columns=dataset_orig_train.feature_names
         )

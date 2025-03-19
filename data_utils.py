@@ -9,6 +9,8 @@ from aif360.datasets import MEPSDataset20
 from aif360.datasets import MEPSDataset21
 from aif360.datasets import BinaryLabelDataset, StandardDataset
 
+from sklearn.preprocessing import MinMaxScaler
+
 from aif360.algorithms.preprocessing.optim_preproc_helpers.data_preproc_functions\
             import load_preproc_data_adult, load_preproc_data_german, load_preproc_data_compas
             
@@ -28,6 +30,7 @@ class DatasetBuilder:
 
     # load data 'adult', 'grade', 'bank', 'german', 'compas', or 'meps'
     def load_data(self):
+        print(f"Inside load_data(), self.DATASET = {self.DATASET}")
         if self.DATASET == 'adult':
             protected_attribute_used = 1
 
@@ -41,10 +44,20 @@ class DatasetBuilder:
                 dataset = load_preproc_data_adult(['race'])
 
         elif self.DATASET == 'bank':
+            print("INSIDE BANK")
             self.privileged_groups = [{'age': 1}]
             self.unprivileged_groups = [{'age': 0}]
             
             df = pd.read_csv("./data/bank_dup.csv", index_col=0)
+                        
+            # Identify numeric columns (excluding protected attributes and target labels)
+            protected_attributes = ['age']
+            label_column = ['y']
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # Apply MinMax Scaling
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
 
             # Create a BinaryLabelDataset using the binary labels ('y') and relevant attributes
             dataset = BinaryLabelDataset(
@@ -54,6 +67,10 @@ class DatasetBuilder:
                 label_names=['y'],  
                 protected_attribute_names=['age']
             )
+            
+            print("GETTINT OUTSIDE BANK")
+            
+            return dataset
             # dataset = StandardDataset(
             #     df=df,
             #     label_name='y',  # Corrected: label_name should be a string
@@ -152,6 +169,15 @@ class DatasetBuilder:
             self.unprivileged_groups = [{'gender': 0}]
             
             df = pd.read_csv("./data/law_preprocessed.csv")
+            
+            # Identify numeric columns (excluding protected attributes and target labels)
+            protected_attributes = ['gender']
+            label_column = ['pass_bar']
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # Apply MinMax Scaling
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
 
             # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
             dataset = BinaryLabelDataset(
@@ -161,6 +187,8 @@ class DatasetBuilder:
                 label_names=['pass_bar'],  # The newly created binary label
                 protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
             )
+            
+            return dataset
         
         elif self.DATASET == 'law_race':
             self.privileged_groups = [{'race': 1}]
@@ -193,14 +221,28 @@ class DatasetBuilder:
             self.privileged_groups = [{'sex': 1}]
             self.unprivileged_groups = [{'sex': 0}]
             
+            # Load dataset
             df = pd.read_csv("./data/compas_preprocessed_final.csv")
+
+            # Identify columns
+            protected_attributes = ['sex']
+            label_column = 'two_year_recid'
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # Apply MinMax Scaling to feature columns only
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+            # Convert back to BinaryLabelDataset
             dataset = BinaryLabelDataset(
-                favorable_label=1,  
-                unfavorable_label=0,  
+                favorable_label=1,
+                unfavorable_label=0,
                 df=df,
-                label_names=['two_year_recid'], 
-                protected_attribute_names=['sex']  
+                label_names=[label_column], 
+                protected_attribute_names=protected_attributes  
             )
+
+            return dataset
 
         elif self.DATASET == 'german_age':
             self.privileged_groups = [{'age': 1}]
@@ -355,6 +397,7 @@ class DatasetBuilder:
             elif self.DATASET == 'meps20':
                 dataset = MEPSDataset20()
             else:
+                print(f"Dataset '{self.DATASET}' not found, defaulting to MEPSDataset.")
                 dataset = MEPSDataset21()
 
             sens_ind = 0

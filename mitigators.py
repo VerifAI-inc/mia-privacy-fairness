@@ -239,16 +239,16 @@ class DIRMitigator(BaseMitigator):
 
         return dir_metrics, dir_mia_metrics
 
-class OPMitigator(BaseMitigator):
+# class OPMitigator(BaseMitigator):
 
-    mitigator_type = 'Optim Prepproc Mitigator'
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,  
-                      sensitive_attribute, model_type, op_metrics, SCALER):
-        OP = OptimPreproc(unprivileged_groups=unprivileged_groups,
-                          privileged_groups=privileged_groups)
-        dataset_op_train = OP.fit_transform(dataset_orig_train)
+#     mitigator_type = 'Optim Prepproc Mitigator'
+#     def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,  
+#                       sensitive_attribute, model_type, op_metrics, SCALER):
+#         OP = OptimPreproc(unprivileged_groups=unprivileged_groups,
+#                           privileged_groups=privileged_groups)
+#         dataset_op_train = OP.fit_transform(dataset_orig_train)
 
-        return op_metrics
+#         return op_metrics
 
 class ReweighMitigator(BaseMitigator):
 

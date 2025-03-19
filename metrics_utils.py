@@ -3,6 +3,10 @@ import numpy as np
 from collections import OrderedDict, defaultdict
 from aif360.metrics import ClassificationMetric
 
+import shap
+
+from models import MLPClassifierWithWeightWrapper
+
 #setup classification/test models
 from models import TModel
 
@@ -12,6 +16,14 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+
+
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 from membership_infer_attack import run_mia_attack
 
@@ -34,6 +46,7 @@ from fairlearn.metrics import equalized_odds_difference
 from sklearn.metrics import accuracy_score
 from membership_infer_attack import run_mia2_attack
 from aif360.datasets import BinaryLabelDataset
+import diffprivlib.models as dp
 
 from privacy_meter.information_source import InformationSource
 
@@ -66,10 +79,14 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
             
         # sklearn classifier
         else:
+            print("Checking predict proba")
             y_val_pred_prob = model.predict_proba(dataset.features)
             
-            pos_ind = np.where(model.classes_ == dataset.favorable_label)[0][0] # just returns the favorable value
-            neg_ind = np.where(model.classes_ == dataset.unfavorable_label)[0][0] # just returns the unfavorable value
+            # pos_ind = np.where(model.classes_ == dataset.favorable_label)[0][0] # just returns the favorable value
+            # neg_ind = np.where(model.classes_ == dataset.unfavorable_label)[0][0] # just returns the unfavorable value
+            unique_labels = [dataset.unfavorable_label, dataset.favorable_label]
+            pos_ind = unique_labels.index(dataset.favorable_label)
+            neg_ind = unique_labels.index(dataset.unfavorable_label)
     except AttributeError:
         # if (ATTACK == "mia2"):
             # Handle ExponentiatedGradient or in-processing algorithms
@@ -139,8 +156,18 @@ def test(f_label, uf_label, unprivileged_groups, privileged_groups, dataset, mod
         # Privileged group negative predictions
         priv_negative_predictions = np.sum(y_val_pred[priv_indices] == uf_label)
         
+        disp_impact = metric.disparate_impact()
+
+        if np.isnan(disp_impact) or disp_impact == 0:
+            disp_impact = np.mean(metric_arrs['disp_imp']) if metric_arrs['disp_imp'] else 1  # Default to 1
+
+        # Prevent ZeroDivisionError
+        if disp_impact == 0:
+            metric_arrs['disp_imp'].append(1)  # Default value if DI is zero
+        else:
+            metric_arrs['disp_imp'].append(1 - min(disp_impact, 1/disp_impact))
+
         metric_arrs['avg_odds_diff'].append(metric.average_odds_difference())
-        metric_arrs['disp_imp'].append(1 - min((metric.disparate_impact()), 1/metric.disparate_impact()))
         metric_arrs['stat_par_diff'].append(metric.statistical_parity_difference())
         metric_arrs['eq_opp_diff'].append(metric.equal_opportunity_difference())
         metric_arrs['theil_ind'].append(metric.theil_index())
@@ -204,7 +231,10 @@ def describe_metrics(metrics, thresh_arr, TEST=True):
         best_ind = -1
     # print("Best balanced accuracy: {:6.4f}".format(metrics['bal_acc'][best_ind]))
     #disp_imp_at_best_ind = np.abs(1 - np.array(metrics['disp_imp']))[best_ind]
-    disp_imp_at_best_ind = 1 - min(metrics['disp_imp'][best_ind], 1/metrics['disp_imp'][best_ind])
+    if metrics['disp_imp'][best_ind] == 0:
+        disp_imp_at_best_ind = 1  # Assign a safe default value
+    else:
+        disp_imp_at_best_ind = 1 - min(metrics['disp_imp'][best_ind], 1/metrics['disp_imp'][best_ind])
     # print("Corresponding 1-min(DI, 1/DI) value: {:6.4f}".format(disp_imp_at_best_ind))
     # print("Corresponding average odds difference value: {:6.4f}".format(metrics['avg_odds_diff'][best_ind]))
     # print("Corresponding statistical parity difference value: {:6.4f}".format(metrics['stat_par_diff'][best_ind]))
@@ -237,8 +267,22 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     sens_attr = dataset.protected_attribute_names[0]  
     sensitive_features = dataset.features[:, dataset.feature_names.index(sens_attr)]
     
+    lower_bounds = np.percentile(dataset.features, 1, axis=0)
+    upper_bounds = np.percentile(dataset.features, 99, axis=0)
+    
     constraint = EqualizedOdds(difference_bound=0.001)
-    classifier = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
+    if model_type == 'dt':
+        classifier = DecisionTreeClassifier(min_samples_leaf=10, max_depth=10)
+    elif model_type == 'dplr':
+        classifier = dp.LogisticRegression(solver='liblinear', random_state=1, epsilon=1, bounds=(lower_bounds, upper_bounds))
+    elif model_type == 'lr':
+        classifier = LogisticRegression(solver='liblinear', random_state=1)
+    elif model_type == 'dprf':
+        classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds))
+    elif model_type == 'rf':
+        classifier = RandomForestClassifier(random_state=1)
+    elif model_type == 'mlp':
+        classifier = MLPClassifierWithWeightWrapper()
     mitigator = ExponentiatedGradient(classifier, constraint)
     mitigator.fit(X, y_true, sensitive_features=sensitive_features)
     
@@ -328,6 +372,21 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
         
     test_metrics = append_accuracies_to_metrics(test_metrics, dataset, dataset_orig_test, mitigator, f_label, uf_label, unprivileged_groups)
 
+    # # **NEW: Compute SHAP values and store in test_metrics**
+    # try:
+    #     explainer = shap.Explainer(mitigator.predict, dataset.features)  # Use a black-box SHAP explainer
+    #     shap_values = explainer(dataset_orig_test.features)
+
+    #     # Compute mean absolute SHAP values for each feature
+    #     mean_shap_values = np.abs(shap_values.values).mean(axis=0)
+
+    #     # Store SHAP values in test_metrics
+    #     test_metrics["shap_values"].append(mean_shap_values.tolist())
+
+    # except Exception as e:
+    #     print(f"⚠️ SHAP computation failed: {e}")
+    #     test_metrics["shap_values"].append([np.nan] * len(dataset.feature_names))
+
     return test_metrics, mia_metrics
 
 def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, ATTACK, log_type, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER):
@@ -337,7 +396,12 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
     dataset = syn_dataset
 
     test_model = TModel(model_type)
-    mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
+    if (model_type == 'mlp' and log_type == 'rew_log'):
+        mod_orig = test_model.set_model(dataset, dataset.instance_weights, ATTACK)
+    elif (model_type == 'mlp'):
+        mod_orig = test_model.set_model(dataset, None, ATTACK)
+    else:
+        mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
     
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
@@ -421,6 +485,21 @@ def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset,
         mia_metrics[f"{results[i].get_name()}_mia_result"].append(results[i])
         
     test_metrics = append_accuracies_to_metrics(test_metrics, dataset, dataset_orig_test, mod_orig, f_label, uf_label, unprivileged_groups)
+    
+    #  # **NEW: Compute SHAP values and store in test_metrics**
+    # try:
+    #     explainer = shap.Explainer(mod_orig.predict, dataset.features)  # Use a black-box SHAP explainer
+    #     shap_values = explainer(dataset_orig_test.features)
+
+    #     # Compute mean absolute SHAP values for each feature
+    #     mean_shap_values = np.abs(shap_values.values).mean(axis=0)
+
+    #     # Store SHAP values in test_metrics
+    #     test_metrics["shap_values"].append(mean_shap_values.tolist())
+
+    # except Exception as e:
+    #     print(f"⚠️ SHAP computation failed: {e}")
+    #     test_metrics["shap_values"].append([np.nan] * len(dataset.feature_names))
 
     return test_metrics, mia_metrics
 
@@ -444,7 +523,10 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
         X_valid = dataset_orig_val.features
         
     test_model = TModel(model_type)
-    mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
+    if (model_type == 'mlp'):
+        mod_orig = test_model.set_model(dataset, None, ATTACK)
+    else:
+        mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
     
     fav_idx = np.where(mod_orig.classes_ == dataset.favorable_label)[0][0]
     y_train_pred_prob = mod_orig.predict_proba(X_train)[:,fav_idx]
@@ -567,6 +649,10 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
     
     test_metrics = print_cpp_accuracies(test_metrics, dataset, dataset_orig_test, train_pred_cpp, test_pred_cpp, unprivileged_groups, f_label, uf_label)
 
+    # if hasattr(mod_orig, "feature_importances_"):  # Ensure model supports feature importance
+    #     feature_importance = mod_orig.feature_importances_.tolist()
+    #     test_metrics["feature_importances"].append(feature_importance)
+
     return test_metrics, mia_metrics
 
 def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
@@ -575,7 +661,10 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
     dataset = dataset_orig_train
 
     test_model = TModel(model_type)
-    mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
+    if (model_type == 'mlp'):
+        mod_orig = test_model.set_model(dataset, None, ATTACK)
+    else:
+        mod_orig = test_model.set_model(dataset, SCALER, ATTACK)
     
     if ATTACK == "mia1":
         thresh_arr = np.linspace(0.01, THRESH_ARR, 50)
@@ -663,6 +752,21 @@ def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, data
         
     test_metrics = append_accuracies_to_metrics(test_metrics, dataset, dataset_orig_test, mod_orig, f_label, uf_label, unprivileged_groups)
 
+    # # **NEW: Compute SHAP values and store in test_metrics**
+    # try:
+    #     explainer = shap.Explainer(mod_orig.predict, dataset.features)  # Use a black-box SHAP explainer
+    #     shap_values = explainer(dataset_orig_test.features)
+
+    #     # Compute mean absolute SHAP values for each feature
+    #     mean_shap_values = np.abs(shap_values.values).mean(axis=0)
+
+    #     # Store SHAP values in test_metrics
+    #     test_metrics["shap_values"].append(mean_shap_values.tolist())
+
+    # except Exception as e:
+    #     print(f"⚠️ SHAP computation failed: {e}")
+    #     test_metrics["shap_values"].append([np.nan] * len(dataset.feature_names))
+
     return test_metrics, mia_metrics
 
 def calculate_accuracy(dataset, model):
@@ -741,13 +845,6 @@ def append_accuracies_to_metrics(test_metrics, train_dataset, test_dataset, mode
         test_metrics[f"accuracy_test_{subgroup}"].append(accuracy)
 
     return test_metrics
-
-def calculate_accuracy(dataset, model):
-    X = pd.DataFrame(dataset.features, columns=dataset.feature_names)
-    y_pred = model.predict(X)
-    y_true = dataset.labels.ravel()
-    accuracy = sum(y_pred == y_true) / len(y_pred)
-    return accuracy
 
 def print_cpp_accuracies(test_metrics, dataset_orig_train, dataset_orig_test, 
                          train_pred_cpp, test_pred_cpp, 

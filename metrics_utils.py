@@ -280,7 +280,7 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     elif model_type == 'dprf':
         classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds))
     elif model_type == 'rf':
-        classifier = RandomForestClassifier(random_state=1)
+        classifier = RandomForestClassifier(random_state=1, max_depth=29)
     elif model_type == 'mlp':
         classifier = MLPClassifierWithWeightWrapper()
     mitigator = ExponentiatedGradient(classifier, constraint)

@@ -51,7 +51,7 @@ class DPLRModel(BaseModel):
         upper_bounds = np.percentile(dataset_train.features, 99, axis=0)
         if ATTACK == "mia1":
             if SCALER:
-                model = make_pipeline(StandardScaler(), dp.LogisticRegression(solver='liblinear', random_state=1, epsilon=10, bounds=(lower_bounds,upper_bounds)))
+                model = make_pipeline(StandardScaler(), dp.LogisticRegression(solver='liblinear', random_state=1, epsilon=1, bounds=(lower_bounds,upper_bounds)))
             else:
                 model = make_pipeline(dp.LogisticRegression(solver='liblinear', random_state=1))
             
@@ -97,7 +97,7 @@ def weighted_resample(X, y, weights):
     return X[indices], y[indices]
 
 class MLPClassifierWithWeightWrapper(BaseEstimator, ClassifierMixin):
-    def __init__(self, hidden_layer_sizes=(64, 32), activation='relu',
+    def __init__(self, hidden_layer_sizes=(128, 64, 32), activation='relu',
                  solver='adam', alpha=1e-4, learning_rate='adaptive',
                  max_iter=500, random_state=42, early_stopping=True):
         self.hidden_layer_sizes = hidden_layer_sizes

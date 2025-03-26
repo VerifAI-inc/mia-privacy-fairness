@@ -114,15 +114,26 @@ class DatasetBuilder:
             
             # Now, convert the dataset to a pandas DataFrame
             df, _ = reg_dataset.convert_to_dataframe()
+            
+            # # Identify columns
+            protected_attributes = ['gender']
+            label_column = ['gpa_class']
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
 
-            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            # # Apply MinMax Scaling to feature columns only
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+            # Convert back to BinaryLabelDataset
             dataset = BinaryLabelDataset(
-                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
-                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                favorable_label=1,
+                unfavorable_label=0,
                 df=df,
-                label_names=['gpa_class'],  # The newly created binary label
-                protected_attribute_names=['gender']  # The protected attribute (e.g., gender)
+                label_names=label_column, 
+                protected_attribute_names=protected_attributes  
             )
+
+            return dataset
             
         elif self.DATASET == 'law_race_aif':
             self.privileged_groups = [{'race': 1}]
@@ -154,15 +165,26 @@ class DatasetBuilder:
             
             # Now, convert the dataset to a pandas DataFrame
             df, _ = reg_dataset.convert_to_dataframe()
+            
+            # # Identify columns
+            protected_attributes = ['race']
+            label_column = ['gpa_class']
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
 
-            # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
+            # # Apply MinMax Scaling to feature columns only
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+            # Convert back to BinaryLabelDataset
             dataset = BinaryLabelDataset(
-                favorable_label=1,  # 1 indicates "high GPA" (favorable outcome)
-                unfavorable_label=0,  # 0 indicates "low GPA" (unfavorable outcome)
+                favorable_label=1,
+                unfavorable_label=0,
                 df=df,
-                label_names=['gpa_class'],  # The newly created binary label
-                protected_attribute_names=['race']  # The protected attribute (e.g., gender)
+                label_names=label_column, 
+                protected_attribute_names=protected_attributes  
             )
+
+            return dataset
             
         elif self.DATASET == 'law_sex':
             self.privileged_groups = [{'gender': 1}]
@@ -195,6 +217,15 @@ class DatasetBuilder:
             self.unprivileged_groups = [{'race': 0}]
             
             df = pd.read_csv("./data/law_preprocessed.csv")
+            
+            # Identify numeric columns (excluding protected attributes and target labels)
+            protected_attributes = ['race']
+            label_column = ['pass_bar']
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # Apply MinMax Scaling
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
 
             # Create a BinaryLabelDataset using the binary labels (gpa_class) and relevant attributes
             dataset = BinaryLabelDataset(
@@ -205,17 +236,33 @@ class DatasetBuilder:
                 protected_attribute_names=['race']  # The protected attribute (e.g., black race)
             )
             
+            return dataset
+            
         elif self.DATASET == 'compas_race':
             self.privileged_groups = [{'race': 1}]
             self.unprivileged_groups = [{'race': 0}]
             
             df = pd.read_csv("./data/compas_preprocessed_final.csv")
+            
+             # # Identify columns
+            protected_attributes = ['race']
+            label_column = 'two_year_recid'
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # # Apply MinMax Scaling to feature columns only
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+            # Convert back to BinaryLabelDataset
             dataset = BinaryLabelDataset(
-                favorable_label=1,  
-                unfavorable_label=0,  
+                favorable_label=1,
+                unfavorable_label=0,
                 df=df,
-                label_names=['two_year_recid'], 
-                protected_attribute_names=['race'])
+                label_names=[label_column], 
+                protected_attribute_names=protected_attributes  
+            )
+
+            return dataset
 
         elif self.DATASET == 'compas_sex':
             self.privileged_groups = [{'sex': 1}]
@@ -224,12 +271,12 @@ class DatasetBuilder:
             # Load dataset
             df = pd.read_csv("./data/compas_preprocessed_final.csv")
 
-            # Identify columns
+            # # Identify columns
             protected_attributes = ['sex']
             label_column = 'two_year_recid'
             feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
 
-            # Apply MinMax Scaling to feature columns only
+            # # Apply MinMax Scaling to feature columns only
             scaler = MinMaxScaler()
             df[feature_columns] = scaler.fit_transform(df[feature_columns])
 
@@ -260,13 +307,25 @@ class DatasetBuilder:
             df, _ = dataset_g.convert_to_dataframe()
             df = custom_preprocessing(df)
             
+            # # Identify columns
+            protected_attributes = ['age']
+            label_column = dataset_g.label_names
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # # Apply MinMax Scaling to feature columns only
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+            # Convert back to BinaryLabelDataset
             dataset = BinaryLabelDataset(
-                favorable_label=1,  
-                unfavorable_label=0, 
+                favorable_label=1,
+                unfavorable_label=0,
                 df=df,
-                label_names=dataset_g.label_names,  # The newly created binary label
-                protected_attribute_names=['age']
+                label_names=label_column, 
+                protected_attribute_names=protected_attributes  
             )
+
+            return dataset
         
         elif self.DATASET == 'german_sex':
             self.privileged_groups = [{'sex': 1}]
@@ -283,14 +342,25 @@ class DatasetBuilder:
             dataset_g = GermanDataset()
             df, _ = dataset_g.convert_to_dataframe()
             df = custom_preprocessing(df)
-            
+             # # Identify columns
+            protected_attributes = ['sex']
+            label_column = dataset_g.label_names
+            feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+            # # Apply MinMax Scaling to feature columns only
+            scaler = MinMaxScaler()
+            df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+            # Convert back to BinaryLabelDataset
             dataset = BinaryLabelDataset(
-                favorable_label=1,  
-                unfavorable_label=0, 
+                favorable_label=1,
+                unfavorable_label=0,
                 df=df,
-                label_names=dataset_g.label_names,  # The newly created binary label
-                protected_attribute_names=['sex']
+                label_names=label_column, 
+                protected_attribute_names=protected_attributes  
             )
+
+            return dataset
         
         elif self.DATASET == 'german_foreign':
             self.privileged_groups = [{'foreign': 1}]
@@ -393,7 +463,31 @@ class DatasetBuilder:
                                 unprivileged_protected_attributes=self.unprivileged_groups)
         else:
             if self.DATASET == 'meps19':
+                self.privileged_groups = [{'RACE': 1}]
+                self.unprivileged_groups = [{'RACE': 0}]     
                 dataset = MEPSDataset19()
+                
+                df, _ = dataset.convert_to_dataframe()
+                
+                 # # Identify columns
+                protected_attributes = ['RACE']
+                label_column = 'UTILIZATION'
+                feature_columns = [col for col in df.columns if col not in protected_attributes + [label_column]]
+
+                # # Apply MinMax Scaling to feature columns only
+                scaler = MinMaxScaler()
+                df[feature_columns] = scaler.fit_transform(df[feature_columns])
+
+                # Convert back to BinaryLabelDataset
+                dataset = BinaryLabelDataset(
+                    favorable_label=1,
+                    unfavorable_label=0,
+                    df=df,
+                    label_names=[label_column], 
+                    protected_attribute_names=protected_attributes  
+                )
+                
+                return dataset
             elif self.DATASET == 'meps20':
                 dataset = MEPSDataset20()
             else:

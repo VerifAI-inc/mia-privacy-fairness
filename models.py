@@ -155,7 +155,7 @@ class DPRF(BaseModel):
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
         elif ATTACK == "mia2":
-            model = dp.RandomForestClassifier(random_state=1, epsilon=10, bounds=(0,1), max_depth=2)
+            model = dp.RandomForestClassifier(random_state=1, epsilon=1, bounds=(0,1), max_depth=15)
             model.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
         return model
 
@@ -177,7 +177,7 @@ class RFModel(BaseModel):
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
         elif ATTACK == "mia2":
-            model = RandomForestClassifier(random_state=1, max_depth=29)
+            model = RandomForestClassifier(random_state=1, max_depth=15)
             model.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
         return model
 

@@ -1,0 +1,11 @@
+Accuracy Metric,orig,syn,syn_target,dir,rew,egr
+Overall Train Accuracy,0.9495180388939173,0.9437901505338696,0.9440312530216687,0.9516914439639453,0.9495137448700891,0.9490168151162252
+Overall Test Accuracy,0.9504493045388057,0.9491139336401372,0.9492914380745274,0.9482775632689484,0.9504530004980465,0.950978630139394
+Train: Privileged Favorable,1.0,1.0,1.0,1.0,1.0,1.0
+Train: Unprivileged Favorable,1.0,1.0,1.0,1.0,1.0,1.0
+Train: Unprivileged Unfavorable,0.0,0.0,0.0,0.0,0.0,0.0
+Train: Privileged Unfavorable,0.0,0.0,0.0,0.0,0.0,0.0
+Test: Privileged Favorable,1.0,1.0,1.0,1.0,1.0,1.0
+Test: Unprivileged Favorable,0.9999611951882033,1.0,1.0,0.9999616329036218,0.9999615621156211,0.9999609405515194
+Test: Unprivileged Unfavorable,0.0,0.0,0.0,0.0,0.0,0.0014406980072937281
+Test: Privileged Unfavorable,0.0,0.0,0.0,0.0,0.0,0.0

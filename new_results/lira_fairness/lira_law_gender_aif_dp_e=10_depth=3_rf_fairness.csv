@@ -1,0 +1,7 @@
+Fairness Metric,orig,syn,syn_target,dir,rew,egr
+balanced_accuracy,0.5,0.5,0.5,0.5,0.5,0.5
+average_odds_difference,0.0,0.0,0.0,0.0,0.0,0.0
+disparate_impact,,,,,,
+statistical_parity_difference,0.0,0.0,0.0,0.0,0.0,0.0
+equal_opportunity_difference,0.0,0.0,0.0,0.0,0.0,0.0
+theil_index,0.3598077425373874,0.35977288043182276,0.36042881368246765,0.36156171222742634,0.36016094060231935,0.35568570844767633

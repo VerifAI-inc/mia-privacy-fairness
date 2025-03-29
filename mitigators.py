@@ -57,12 +57,12 @@ class BaseMitigator:
 class NullMitigator(BaseMitigator): 
 
     mitigator_type = 'No Mitigator'
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test, 
+    def run_mitigator(self, DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test, 
                       model_type, orig_metrics, orig_mia_metrics, f_label, uf_label, 
                       unprivileged_groups, privileged_groups, ATTACK, THRESH_ARR, 
                       DISPLAY, SCALER, target_dataset, reference_dataset):
         dataset = dataset_orig_train
-        metrics, mia_metrics = get_test_metrics(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, orig_metrics, orig_mia_metrics, ATTACK, 'un_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        metrics, mia_metrics = get_test_metrics(DATASET, target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, orig_metrics, orig_mia_metrics, ATTACK, 'un_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         # if ATTACK == "mia1":
         #             elif ATTACK == "mia2":
@@ -76,7 +76,7 @@ class NullMitigator(BaseMitigator):
 class SyntheticMitigator(BaseMitigator):
 
     mitigator_type = 'Synthetic Data Mitigator'
-    def run_mitigator (self, dataset_orig_train, dataset_orig_val, dataset_orig_test, 
+    def run_mitigator (self, DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test, 
                        privileged_groups, unprivileged_groups, 
                        base_rate_privileged, base_rate_unprivileged, 
                        model_type, transf_metrics, transf_mia_metrics,
@@ -99,7 +99,7 @@ class SyntheticMitigator(BaseMitigator):
         # fitting the model on the transformed dataset with synthetic generator
         dataset = dataset_transf_train
         # transf_metrics, transf_mia_metrics = get_test_metrics(dataset, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
-        transf_metrics, transf_mia_metrics = get_test_metrics_for_syn_rew(target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, ATTACK, 'syn_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        transf_metrics, transf_mia_metrics = get_test_metrics_for_syn_rew(DATASET, target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, transf_metrics, transf_mia_metrics, ATTACK, 'syn_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         # For exp
         #explainer = Explainer()
@@ -171,7 +171,7 @@ class DIRMitigator(BaseMitigator):
 
     mitigator_type = 'Disparity Impact Remover Mitigator'
 
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
+    def run_mitigator(self, DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test,
                       sensitive_attribute, model_type, dir_metrics, dir_mia_metrics,
                       f_label, uf_label, unprivileged_groups, privileged_groups,
                       ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
@@ -216,6 +216,7 @@ class DIRMitigator(BaseMitigator):
 
         # Call get_test_metrics with transformed datasets
         dir_metrics, dir_mia_metrics = get_test_metrics(
+            DATASET, 
             target_dataset=target_dataset_dir,
             reference_dataset=reference_dataset_dir,
             dataset_orig_train=dataset,
@@ -253,7 +254,7 @@ class DIRMitigator(BaseMitigator):
 class ReweighMitigator(BaseMitigator):
 
     mitigator_type = 'Reweigh Mitigator'
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
+    def run_mitigator(self, DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test,
                       f_label, uf_label, unprivileged_groups, privileged_groups, model_type, reweigh_metrics, reweigh_mia_metrics,
                       ATTACK, THRESH_ARR, DISPLAY, SCALER, target_dataset, reference_dataset):
 
@@ -317,7 +318,7 @@ class ReweighMitigator(BaseMitigator):
         #explainer = Explainer()
         #explainer.explain(dataset_reweigh_train, dataset_orig_test, 'reweigh')
                 
-        reweigh_metrics, reweigh_mia_metrics = get_test_metrics_for_syn_rew(target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, reweigh_metrics, reweigh_mia_metrics, ATTACK, 'rew_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        reweigh_metrics, reweigh_mia_metrics = get_test_metrics_for_syn_rew(DATASET, target_dataset, reference_dataset, dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, reweigh_metrics, reweigh_mia_metrics, ATTACK, 'rew_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
 
         
         return reweigh_metrics, reweigh_mia_metrics
@@ -326,7 +327,7 @@ class ReweighMitigator(BaseMitigator):
 # Exponentiated Gradiant Reduction (In-processing)
 class EGMitigator(BaseMitigator):
     mitigator_type = 'EG Mitigator'
-    def run_mitigator(self, dataset_orig_train, dataset_orig_val, dataset_orig_test,
+    def run_mitigator(self, DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test,
                       eg_metrics, eg_mia_metrics, model_type, 
                       f_label, uf_label, 
                       unprivileged_groups, privileged_groups, 
@@ -334,7 +335,7 @@ class EGMitigator(BaseMitigator):
         # set up dataset
         
         dataset = dataset_orig_train
-        eg_metrics, eg_mia_metrics = get_test_metrics_for_eg(target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, eg_metrics, eg_mia_metrics, ATTACK, 'eg_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
+        eg_metrics, eg_mia_metrics = get_test_metrics_for_eg(DATASET, target_dataset, reference_dataset, dataset, dataset_orig_val, dataset_orig_test, model_type, eg_metrics, eg_mia_metrics, ATTACK, 'eg_log', f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER)
                 
         return eg_metrics, eg_mia_metrics
 

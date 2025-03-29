@@ -258,7 +258,7 @@ def get_info_sources(target_dataset, reference_dataset, model):
     
     return target_info_source, reference_info_source
 
-def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
+def get_test_metrics_for_eg(DATASET, target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
                      unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
     dataset = dataset_orig_train
@@ -267,8 +267,8 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     sens_attr = dataset.protected_attribute_names[0]  
     sensitive_features = dataset.features[:, dataset.feature_names.index(sens_attr)]
     
-    lower_bounds = np.percentile(dataset.features, 1, axis=0)
-    upper_bounds = np.percentile(dataset.features, 99, axis=0)
+    lower_bounds = 0
+    upper_bounds = 1
     
     constraint = EqualizedOdds(difference_bound=0.001)
     if model_type == 'dt':
@@ -278,9 +278,23 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
     elif model_type == 'lr':
         classifier = LogisticRegression(solver='liblinear', random_state=1)
     elif model_type == 'dprf':
-        classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=15)
+        if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
+            classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=15)
+        elif DATASET.startswith("compas"):
+            classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=6)
+        elif DATASET == "law_sex" or DATASET == "law_race":
+            classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=7)
+        elif classifier.startswith("law"):
+            classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=3)
     elif model_type == 'rf':
-        classifier = RandomForestClassifier(random_state=1, max_depth=15)
+        if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
+            classifier = RandomForestClassifier(random_state=1, max_depth=15)
+        elif DATASET.startswith("compas"):
+            classifier = RandomForestClassifier(random_state=1, max_depth=6)
+        elif DATASET == "law_sex" or DATASET == "law_race":
+            classifier = RandomForestClassifier(random_state=1, max_depth=7)
+        elif classifier.startswith("law"):
+            classifier = RandomForestClassifier(random_state=1, max_depth=3)
     elif model_type == 'mlp':
         classifier = MLPClassifierWithWeightWrapper()
     mitigator = ExponentiatedGradient(classifier, constraint)
@@ -389,13 +403,13 @@ def get_test_metrics_for_eg(target_dataset, reference_dataset, dataset_orig_trai
 
     return test_metrics, mia_metrics
 
-def get_test_metrics_for_syn_rew(target_dataset, reference_dataset, syn_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, ATTACK, log_type, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER):
+def get_test_metrics_for_syn_rew(DATASET, target_dataset, reference_dataset, syn_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, test_metrics, mia_metrics, ATTACK, log_type, f_label, uf_label, unprivileged_groups, privileged_groups, THRESH_ARR, DISPLAY, SCALER):
     """
     Return the metrics for sysntetic mitigator, the difference being the fact that it additionally recieves orig train for running MIA
     """
     dataset = syn_dataset
 
-    test_model = TModel(model_type)
+    test_model = TModel(DATASET, model_type)
     if (model_type == 'mlp' and log_type == 'rew_log'):
         mod_orig = test_model.set_model(dataset, dataset.instance_weights, ATTACK)
     elif (model_type == 'mlp'):
@@ -522,7 +536,7 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
         X_test = dataset_orig_test.features
         X_valid = dataset_orig_val.features
         
-    test_model = TModel(model_type)
+    test_model = TModel(DATASET, model_type)
     if (model_type == 'mlp'):
         mod_orig = test_model.set_model(dataset, None, ATTACK)
     else:
@@ -655,12 +669,12 @@ def get_test_metrics_for_cpp(target_dataset, reference_dataset, dataset_orig_tra
 
     return test_metrics, mia_metrics
 
-def get_test_metrics(target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
+def get_test_metrics(DATASET, target_dataset, reference_dataset, dataset_orig_train, dataset_orig_val, dataset_orig_test, model_type, 
                      test_metrics, mia_metrics, ATTACK, log_type, f_label=None, uf_label=None, 
                      unprivileged_groups=None, privileged_groups=None, THRESH_ARR=None, DISPLAY=None, SCALER=None):
     dataset = dataset_orig_train
 
-    test_model = TModel(model_type)
+    test_model = TModel(DATASET, model_type)
     if (model_type == 'mlp'):
         mod_orig = test_model.set_model(dataset, None, ATTACK)
     else:

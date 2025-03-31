@@ -164,7 +164,7 @@ class DPRF(BaseModel):
                 classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=6)
             elif DATASET == "law_sex" or DATASET == "law_race":
                 classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=7)
-            elif classifier.startswith("law"):
+            elif DATASET.startswith("law"):
                 classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=3)
             classifier.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
         return classifier
@@ -193,7 +193,7 @@ class RFModel(BaseModel):
                 classifier = RandomForestClassifier(random_state=1, max_depth=6)
             elif DATASET == "law_sex" or DATASET == "law_race":
                 classifier = RandomForestClassifier(random_state=1, max_depth=7)
-            elif classifier.startswith("law"):
+            elif DATASET.startswith("law"):
                 classifier = RandomForestClassifier(random_state=1, max_depth=3)
             classifier.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
         return classifier

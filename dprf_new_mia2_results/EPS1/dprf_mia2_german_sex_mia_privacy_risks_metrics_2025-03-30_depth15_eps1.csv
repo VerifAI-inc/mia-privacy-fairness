@@ -1,0 +1,26 @@
+,Method,Metric,Mean Privacy Risk,Error
+0,orig,entire_dataset_mia_privacy_risk,0.5314583333333334,0.02143751118868309
+1,orig,subpopulation_0.0_label_0.0_mia_privacy_risk,0.5607519202933291,0.07062702749235039
+2,orig,subpopulation_0.0_label_1.0_mia_privacy_risk,0.5311651111249699,0.05343577167800919
+3,orig,subpopulation_1.0_label_0.0_mia_privacy_risk,0.541755395711623,0.04684361987851719
+4,orig,subpopulation_1.0_label_1.0_mia_privacy_risk,0.5443113167910782,0.03477169532782007
+5,transf,entire_dataset_mia_privacy_risk,0.5345833333333332,0.026904775766847185
+6,transf,subpopulation_0.0_label_0.0_mia_privacy_risk,0.5810154758597096,0.089565994115704
+7,transf,subpopulation_0.0_label_1.0_mia_privacy_risk,0.5566139770329752,0.04477535805843951
+8,transf,subpopulation_1.0_label_0.0_mia_privacy_risk,0.5460086505651898,0.05445606183594479
+9,transf,subpopulation_1.0_label_1.0_mia_privacy_risk,0.5329043365464109,0.03700814626487558
+10,dir,entire_dataset_mia_privacy_risk,0.5270833333333333,0.01816207893141948
+11,dir,subpopulation_0.0_label_0.0_mia_privacy_risk,0.5558100858120208,0.07767548646171979
+12,dir,subpopulation_0.0_label_1.0_mia_privacy_risk,0.5276604120236154,0.04048345976768972
+13,dir,subpopulation_1.0_label_0.0_mia_privacy_risk,0.5448640172606382,0.0464431097179378
+14,dir,subpopulation_1.0_label_1.0_mia_privacy_risk,0.5414708298553114,0.03134533387972913
+15,rew,entire_dataset_mia_privacy_risk,0.5314583333333334,0.02143751118868309
+16,rew,subpopulation_0.0_label_0.0_mia_privacy_risk,0.5607519202933291,0.07062702749235039
+17,rew,subpopulation_0.0_label_1.0_mia_privacy_risk,0.5311651111249699,0.05343577167800919
+18,rew,subpopulation_1.0_label_0.0_mia_privacy_risk,0.541755395711623,0.04684361987851719
+19,rew,subpopulation_1.0_label_1.0_mia_privacy_risk,0.5443113167910782,0.03477169532782007
+20,eg,entire_dataset_mia_privacy_risk,0.5372916666666667,0.026264615814050075
+21,eg,subpopulation_0.0_label_0.0_mia_privacy_risk,0.5941027358219695,0.07882484659281862
+22,eg,subpopulation_0.0_label_1.0_mia_privacy_risk,0.5442106307890873,0.05974655082141546
+23,eg,subpopulation_1.0_label_0.0_mia_privacy_risk,0.5803068636309887,0.059645701374715504
+24,eg,subpopulation_1.0_label_1.0_mia_privacy_risk,0.54271617585544,0.03601770215930858

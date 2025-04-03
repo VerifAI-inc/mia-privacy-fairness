@@ -97,7 +97,7 @@ def weighted_resample(X, y, weights):
     return X[indices], y[indices]
 
 class MLPClassifierWithWeightWrapper(BaseEstimator, ClassifierMixin):
-    def __init__(self, hidden_layer_sizes=(128, 64, 32), activation='relu',
+    def __init__(self, hidden_layer_sizes=(16), activation='relu',
                  solver='adam', alpha=1e-4, learning_rate='adaptive',
                  max_iter=500, random_state=42, early_stopping=True):
         self.hidden_layer_sizes = hidden_layer_sizes

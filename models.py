@@ -144,7 +144,7 @@ class MLP(BaseModel):
 class DPRF(BaseModel):
     model_name = 'Differentially Private Random Forest'
     
-    def train (self, dataset_train, SCALER, ATTACK):
+    def train (self, DATASET, dataset_train, SCALER, ATTACK):
         print ('[INFO]: training differentially private random forest')
         if ATTACK == "mia1":
             if SCALER:
@@ -155,9 +155,19 @@ class DPRF(BaseModel):
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
         elif ATTACK == "mia2":
-            model = dp.RandomForestClassifier(random_state=1, epsilon=10, bounds=(0,1), max_depth=2)
-            model.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
-        return model
+            lower_bounds = 0
+            upper_bounds = 1
+            
+            if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
+                classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=15)
+            elif DATASET.startswith("compas"):
+                classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=6)
+            elif DATASET == "law_sex" or DATASET == "law_race":
+                classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=7)
+            elif DATASET.startswith("law"):
+                classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=3)
+            classifier.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
+        return classifier
 
 class RFModel(BaseModel):
 
@@ -166,7 +176,7 @@ class RFModel(BaseModel):
         self.n_est = n_est
         self.min_leaf = min_leaf
 
-    def train (self, dataset_train, SCALER, ATTACK):
+    def train (self, DATASET, dataset_train, SCALER, ATTACK):
         print ('[INFO]: training random forest')
         if ATTACK == "mia1":
             if SCALER:
@@ -177,9 +187,16 @@ class RFModel(BaseModel):
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
         elif ATTACK == "mia2":
-            model = RandomForestClassifier(random_state=1, max_depth=2)
-            model.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
-        return model
+            if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
+                classifier = RandomForestClassifier(random_state=1, max_depth=15)
+            elif DATASET.startswith("compas"):
+                classifier = RandomForestClassifier(random_state=1, max_depth=6)
+            elif DATASET == "law_sex" or DATASET == "law_race":
+                classifier = RandomForestClassifier(random_state=1, max_depth=7)
+            elif DATASET.startswith("law"):
+                classifier = RandomForestClassifier(random_state=1, max_depth=3)
+            classifier.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
+        return classifier
 
     def bare_model(self):
 
@@ -371,13 +388,16 @@ class SVMModel(BaseModel):
 
 class TModel():
 
-    def __init__(self, model_type):
+    def __init__(self, DATASET, model_type):
+        self.DATASET = DATASET
         self.model_type = model_type
+        print("This is how I see model type: ", self.model_type)
 
     def set_model(self, dataset, SCALER, ATTACK):
         if self.model_type == 'lr':
             model = LRModel() 
         elif self.model_type == 'rf':
+            print("INSIDE RF")
             model = RFModel() 
         elif self.model_type == 'svm':
             model = SVMModel() 
@@ -393,7 +413,7 @@ class TModel():
             model = DPRF()
         elif self.model_type == 'mlp':
             model = MLP()
-        trained_model = model.train(dataset, SCALER, ATTACK)
+        trained_model = model.train(self.DATASET, dataset, SCALER, ATTACK)
 
         return trained_model
 

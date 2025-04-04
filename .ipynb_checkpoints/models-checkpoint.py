@@ -147,10 +147,18 @@ class DPRF(BaseModel):
     def train (self, DATASET, dataset_train, SCALER, ATTACK):
         print ('[INFO]: training differentially private random forest')
         if ATTACK == "mia1":
+            if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
+                max_depth=15
+            elif DATASET.startswith("compas"):
+                max_depth=6
+            elif DATASET == "law_sex" or DATASET == "law_race":
+                max_depth=7
+            elif DATASET.startswith("law"):
+                max_depth=3
             if SCALER:
-                model = make_pipeline(StandardScaler(), dp.RandomForestClassifier(random_state=1, epsilon=1, bounds=(0,1)))
+                model = make_pipeline(StandardScaler(), dp.RandomForestClassifier(random_state=1, epsilon=50, bounds=(0,1), max_depth=max_depth))
             else:
-                model = make_pipeline(dp.RandomForestClassifier(random_state=1, epsilon=1, bounds=(0,1)))
+                model = make_pipeline(dp.RandomForestClassifier(random_state=1, epsilon=50, bounds=(0,1), max_depth=max_depth))
             
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
@@ -167,7 +175,7 @@ class DPRF(BaseModel):
             elif DATASET.startswith("law"):
                 classifier = dp.RandomForestClassifier(random_state=1,  epsilon=1, bounds=(lower_bounds, upper_bounds), max_depth=3)
             classifier.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
-        return classifier
+        return model
 
 class RFModel(BaseModel):
 
@@ -179,24 +187,25 @@ class RFModel(BaseModel):
     def train (self, DATASET, dataset_train, SCALER, ATTACK):
         print ('[INFO]: training random forest')
         if ATTACK == "mia1":
+            if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
+                max_depth=15
+            elif DATASET.startswith("compas"):
+                max_depth=6
+            elif DATASET == "law_sex" or DATASET == "law_race":
+                max_depth=7
+            elif DATASET.startswith("law"):
+                max_depth=3
             if SCALER:
-                model = make_pipeline(StandardScaler(), RandomForestClassifier(random_state=1))
+                model = make_pipeline(StandardScaler(), RandomForestClassifier(random_state=1, max_depth=max_depth))
             else:
-                model = make_pipeline(RandomForestClassifier(random_state=1))
+                model = make_pipeline(RandomForestClassifier(random_state=1, max_depth=max_depth))
             
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)
         elif ATTACK == "mia2":
-            if DATASET == "bank" or DATASET.startswith("german") or DATASET == "meps19":
-                classifier = RandomForestClassifier(random_state=1, max_depth=15)
-            elif DATASET.startswith("compas"):
-                classifier = RandomForestClassifier(random_state=1, max_depth=6)
-            elif DATASET == "law_sex" or DATASET == "law_race":
-                classifier = RandomForestClassifier(random_state=1, max_depth=7)
-            elif DATASET.startswith("law"):
-                classifier = RandomForestClassifier(random_state=1, max_depth=3)
+        
             classifier.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=dataset_train.instance_weights)
-        return classifier
+        return model
 
     def bare_model(self):
 

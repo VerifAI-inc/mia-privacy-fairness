@@ -156,9 +156,9 @@ class DPRF(BaseModel):
             elif DATASET.startswith("law"):
                 max_depth=3
             if SCALER:
-                model = make_pipeline(StandardScaler(), dp.RandomForestClassifier(random_state=1, epsilon=1, bounds=(0,1), max_depth=max_depth))
+                model = make_pipeline(StandardScaler(), dp.RandomForestClassifier(random_state=1, epsilon=50, bounds=(0,1), max_depth=max_depth))
             else:
-                model = make_pipeline(dp.RandomForestClassifier(random_state=1, epsilon=1, bounds=(0,1), max_depth=max_depth))
+                model = make_pipeline(dp.RandomForestClassifier(random_state=1, epsilon=50, bounds=(0,1), max_depth=max_depth))
             
             fit_params = {'randomforestclassifier__sample_weight': dataset_train.instance_weights}
             model.fit(dataset_train.features, dataset_train.labels.ravel(), **fit_params)

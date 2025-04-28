@@ -146,7 +146,7 @@ It is recommended to use virtual environments (like `venv` or `conda`) to avoid 
 
 ## Contact
 
-For any questions or clarifications, please reach out to the maintainers of this repository.
+For any questions or clarifications, please reach out to the maintainers of this repository. (inovruzova16235@ada.edu.az, kmammadov14045@ada.edu.az, nhasanova15562@ada.edu.az, bgurbanli14129@ada.edu.az). 
 
 ---
 

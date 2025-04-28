@@ -135,7 +135,7 @@ class MLPClassifierWithWeightWrapper(BaseEstimator, ClassifierMixin):
 class MLP(BaseModel):
     model_name = "MLP Classifier"
     
-    def train (self, dataset_train, sample_weights, ATTACK):
+    def train (self, DATASET, dataset_train, sample_weights, ATTACK):
         print('[INFO]: training differentially private random forest')
         model = MLPClassifierWithWeightWrapper()
         model.fit(dataset_train.features, dataset_train.labels.ravel(), sample_weight=sample_weights)

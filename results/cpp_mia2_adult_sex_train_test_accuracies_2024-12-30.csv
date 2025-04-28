@@ -1,0 +1,11 @@
+,orig_acc_mean,cpp_acc_mean
+accuracy_train_0_-,1.0,1.0
+accuracy_train_0_+,0.0,0.0
+accuracy_train_1_-,0.8929086142793518,1.0
+accuracy_train_1_+,0.49877904885741176,0.0
+accuracy_test_0_-,1.0,1.0
+accuracy_test_0_+,0.0,0.0
+accuracy_test_1_-,0.8768978460000577,1.0
+accuracy_test_1_+,0.45195565834824986,0.0
+accuracy_train,0.805169766251493,0.749923221293295
+accuracy_test,0.7971847807541377,0.763982255587784

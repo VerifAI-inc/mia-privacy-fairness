@@ -1,4 +1,4 @@
-from mitigators import BaseMitigator, NullMitigator, SyntheticMitigator, DIRMitigator, ReweighMitigator, EGMitigator, PRMitigator, CPPMitigator, ROMitigator
+from mitigators import BaseMitigator, NullMitigator, SyntheticMitigator, DIRMitigator, ReweighMitigator, EGMitigator, PRMitigator, CPPMitigator, ROMitigator, SyntheticEGMitigator
 
 class TestAlgorithms:
 
@@ -88,3 +88,15 @@ class TestAlgorithms:
         ro_metrics = ro_mitigator.run_mitigator(dataset_orig_train, dataset_orig_val, dataset_orig_test, ro_metrics, model_type, unprivileged_groups, privileged_groups, THRESH_ARR, SCALER)
 
         return ro_metrics
+    
+    def run_oversample_eg(self, DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test, privileged_groups, unprivileged_groups, 
+                       base_rate_privileged, base_rate_unprivileged, model_type, syn_eg_metrics, syn_eg_mia_metrics, 
+                       f_label, uf_label, ATTACK, THRESH_ARR, DISPLAY, OS_MODE, SCALER, target_dataset=None, reference_dataset=None):
+        print('\n------------------------------\n')
+        print('[INFO] MIX: Random Oversampling and EG ......')
+        print('\n------------------------------\n')
+        syn_eg_mitigator = SyntheticEGMitigator()
+        syn_eg_metrics, syn_eg_mia_metrics = syn_eg_mitigator.run_mitigator(DATASET, dataset_orig_train, dataset_orig_val, dataset_orig_test, privileged_groups, unprivileged_groups, base_rate_privileged, base_rate_unprivileged, model_type, syn_eg_metrics, syn_eg_mia_metrics, f_label, uf_label, ATTACK, THRESH_ARR, DISPLAY, OS_MODE, SCALER, target_dataset, reference_dataset)
+
+        #synth_mitigator.run_explainer(dataset_orig_train, dataset_orig_val, dataset_orig_test, privileged_groups, unprivileged_groups, base_rate_privileged, base_rate_unprivileged, model_type, transf_metrics, f_label, uf_label, THRESH_ARR, DISPLAY, OS_MODE, SCALER)
+        return syn_eg_metrics, syn_eg_mia_metrics
